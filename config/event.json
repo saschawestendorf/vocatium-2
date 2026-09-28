@@ -1,0 +1,46 @@
+{
+  "slug": "vocatium-2026",
+  "organizer": "Rotary Club Stralsund – Hansestadt",
+  "title": "Ein Tag Chef sein.",
+  "intro": "Rotary ist ein Netzwerk mit Menschen in Führungspositionen. Sie treffen sich regelmäßig, um gemeinsam lokale und globale Probleme anzupacken – mit Zeit, Know-how und Spenden. Ihr Zweck: Gutes in der Welt tun.",
+  "claim": "Heute übernimmst du die Führung!",
+  "booth": "Stand A 12",
+  "website": "https://rotary.de/stralsund",
+  "privacyUrl": "https://rotary.de/stralsund/datenschutz",
+  "budget": {
+    "totalEuro": 10000,
+    "stepEuro": 100,
+    "requireFullAllocation": true,
+    "question": "Welches Projekt bekommt wie viel €?",
+    "hint": "Du kannst 10.000 € frei zwischen diesen Projekten verteilen."
+  },
+  "projects": [
+    {
+      "slug": "end-polio-now",
+      "title": "End Polio Now",
+      "description": "Weltweite Bekämpfung der Kinderlähmung – das größte Projekt von Rotary.",
+      "imageUrl": null
+    },
+    { "slug": "projekt-2", "title": "Projekt 2", "description": "Beschreibung folgt.", "imageUrl": null },
+    { "slug": "projekt-3", "title": "Projekt 3", "description": "Beschreibung folgt.", "imageUrl": null },
+    { "slug": "projekt-4", "title": "Projekt 4", "description": "Beschreibung folgt.", "imageUrl": null },
+    { "slug": "projekt-5", "title": "Projekt 5", "description": "Beschreibung folgt.", "imageUrl": null }
+  ],
+  "wheel": {
+    "title": "Chef-Momente meistern",
+    "intro": "5 Unternehmen verlosen einen echten Tag als Chefin oder Chef bei sich im Betrieb. Dreh am Glücksrad!",
+    "question": "Was hat dein Glücksrad angezeigt?"
+  },
+  "companies": [
+    { "slug": "betrieb-1", "name": "Betrieb 1" },
+    { "slug": "betrieb-2", "name": "Betrieb 2" },
+    { "slug": "betrieb-3", "name": "Betrieb 3" },
+    { "slug": "betrieb-4", "name": "Betrieb 4" },
+    { "slug": "betrieb-5", "name": "Betrieb 5" }
+  ],
+  "consentText": "Ich willige ein, dass der Rotary Club Stralsund und der ausgeloste Betrieb mich zum Gewinn „Ein Tag Chef sein“ per E-Mail oder Telefon kontaktieren dürfen. Die Einwilligung kann ich jederzeit widerrufen.",
+  "kiosk": {
+    "idleResetSeconds": 180,
+    "doneResetSeconds": 90
+  }
+}
