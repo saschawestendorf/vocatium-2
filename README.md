@@ -36,7 +36,7 @@ npm test
 2. Variablen am App-Service setzen:
    - `NODE_ENV=production`, `DATABASE_URL=${{Postgres.DATABASE_URL}}`
    - `APP_SECRET` (≥ 32 Zeichen), `ADMIN_PASSWORD`
-   - `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `EMAIL_FROM` (Domain in Resend verifizieren: SPF/DKIM)
+   - `RESEND_API_KEY`, `EMAIL_FROM` (Domain in Resend verifiziert, z. B. `chef@pentalink.cloud`) – Resend wird dann automatisch aktiv
    - optional SMS: `VERIFY_PHONE=true` + `SMS_PROVIDER=twilio` + `TWILIO_*` **oder** `SMS_PROVIDER=seven` + `SEVEN_API_KEY`
 3. Domain generieren. Migrationen laufen automatisch beim Start (Advisory-Lock, mehrinstanzfähig).
    Healthcheck: `/healthz`.

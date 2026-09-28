@@ -27,9 +27,11 @@ const schema = z
     ADMIN_PASSWORD: z.string().optional(),
 
     // E-Mail
-    EMAIL_PROVIDER: z.enum(['resend', 'console']).default('console'),
+    // Ohne Angabe: "resend", sobald RESEND_API_KEY gesetzt ist, sonst "console".
+    EMAIL_PROVIDER: z.enum(['resend', 'console']).optional(),
     RESEND_API_KEY: z.string().optional(),
-    EMAIL_FROM: z.string().default('Ein Tag Chef sein <noreply@example.com>'),
+    // Absender, Domain muss in Resend verifiziert sein, z. B. "Ein Tag Chef sein <chef@pentalink.cloud>"
+    EMAIL_FROM: z.string().trim().optional(),
     EMAIL_REPLY_TO: z.string().optional(),
 
     // SMS
@@ -57,7 +59,9 @@ const schema = z
     };
     need('APP_SECRET', prod, 'APP_SECRET ist in Produktion Pflicht');
     need('ADMIN_PASSWORD', prod, 'ADMIN_PASSWORD ist in Produktion Pflicht');
-    need('RESEND_API_KEY', env.EMAIL_PROVIDER === 'resend', 'RESEND_API_KEY fehlt');
+    const emailProvider = env.EMAIL_PROVIDER ?? (env.RESEND_API_KEY ? 'resend' : 'console');
+    need('RESEND_API_KEY', emailProvider === 'resend', 'RESEND_API_KEY fehlt');
+    need('EMAIL_FROM', emailProvider === 'resend', 'EMAIL_FROM fehlt (Absender mit in Resend verifizierter Domain)');
     need('TWILIO_ACCOUNT_SID', env.SMS_PROVIDER === 'twilio', 'TWILIO_ACCOUNT_SID fehlt');
     need('TWILIO_AUTH_TOKEN', env.SMS_PROVIDER === 'twilio', 'TWILIO_AUTH_TOKEN fehlt');
     if (env.SMS_PROVIDER === 'twilio' && !env.TWILIO_FROM && !env.TWILIO_MESSAGING_SERVICE_SID) {
@@ -88,9 +92,9 @@ export function loadConfig(env = process.env) {
     appSecret: e.APP_SECRET || 'dev-secret-nicht-in-produktion-verwenden',
     admin: { user: e.ADMIN_USER, password: e.ADMIN_PASSWORD },
     email: {
-      provider: e.EMAIL_PROVIDER,
+      provider: e.EMAIL_PROVIDER ?? (e.RESEND_API_KEY ? 'resend' : 'console'),
       resendApiKey: e.RESEND_API_KEY,
-      from: e.EMAIL_FROM,
+      from: e.EMAIL_FROM || 'Ein Tag Chef sein <noreply@example.com>',
       replyTo: e.EMAIL_REPLY_TO,
     },
     sms: {

@@ -22,3 +22,10 @@ test('Boolesche und Listen-Variablen', () => {
   assert.equal(c.verify.phone, true);
   assert.deepEqual(c.sms.allowedCountries, ['DE', 'AT', 'CH']);
 });
+
+test('Resend wird automatisch aktiv, sobald RESEND_API_KEY gesetzt ist', () => {
+  const c = loadConfig({ DATABASE_URL: 'postgres://x', RESEND_API_KEY: 're_x', EMAIL_FROM: 'A <a@b.de>' });
+  assert.equal(c.email.provider, 'resend');
+  assert.throws(() => loadConfig({ DATABASE_URL: 'postgres://x', RESEND_API_KEY: 're_x' }), /EMAIL_FROM/);
+  assert.equal(loadConfig({ DATABASE_URL: 'postgres://x', RESEND_API_KEY: 're_x', EMAIL_PROVIDER: 'console' }).email.provider, 'console');
+});
