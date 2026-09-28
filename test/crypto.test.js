@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { generateCode, generateToken, hmac, safeEqualHex } from '../src/crypto.js';
-import { maskTarget } from '../src/leads.js';
+import { maskTarget, sendFailureMessage } from '../src/leads.js';
 import { escapeHtml } from '../src/emails.js';
 
 test('generateCode liefert immer 6 Ziffern', () => {
@@ -29,4 +29,11 @@ test('maskTarget verbirgt Teile von E-Mail und Telefon', () => {
 
 test('escapeHtml', () => {
   assert.equal(escapeHtml('<a href="x">&\'</a>'), '&lt;a href=&quot;x&quot;&gt;&amp;&#39;&lt;/a&gt;');
+});
+
+test('sendFailureMessage unterscheidet Nutzer- und Konfigurationsfehler', () => {
+  assert.match(sendFailureMessage('email', { status: 422 }), /prüfe die Adresse/);
+  assert.match(sendFailureMessage('email', { status: 403 }), /Standteam/);
+  assert.match(sendFailureMessage('email', new Error('timeout')), /Standteam/);
+  assert.match(sendFailureMessage('email', { status: 429 }), /Minute/);
 });

@@ -175,13 +175,7 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
       log.error({ err: err.message, channel, leadId }, 'Code-Versand fehlgeschlagen');
       // Fehlgeschlagenen Versand nicht auf Cooldown/Limit anrechnen.
       await pool.query('DELETE FROM verifications WHERE id = $1', [prepared.verificationId]).catch(() => {});
-      throw new AppError(
-        502,
-        'send_failed',
-        channel === 'email'
-          ? 'Die E-Mail konnte nicht versendet werden. Bitte prüfe die Adresse.'
-          : 'Die SMS konnte nicht versendet werden. Bitte prüfe die Nummer.',
-      );
+      throw new AppError(502, 'send_failed', sendFailureMessage(channel, err));
     }
     return { sent: true, target: maskTarget(channel, prepared.target), cooldownSeconds: v.resendCooldownSeconds };
   }
@@ -262,6 +256,17 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
   }
 
   return { submit, status, sendCode, verifyCode };
+}
+
+// Nutzerfreundliche Meldung: Nur bei vom Anbieter abgelehnter Empfängeradresse (422/400)
+// liegt der Fehler beim Nutzer; Konfigurationsfehler (401/403) oder Ausfälle nicht.
+export function sendFailureMessage(channel, err) {
+  const what = channel === 'email' ? 'E-Mail' : 'SMS';
+  if (err?.status === 400 || err?.status === 422) {
+    return channel === 'email' ? 'Die E-Mail-Adresse wurde abgelehnt. Bitte prüfe die Adresse.' : 'Die Nummer wurde abgelehnt. Bitte prüfe die Nummer.';
+  }
+  if (err?.status === 429) return `Gerade werden sehr viele ${what}s verschickt. Bitte versuche es in einer Minute erneut.`;
+  return `Der ${what}-Versand ist gerade nicht möglich. Bitte sprich das Standteam an.`;
 }
 
 export function maskTarget(channel, target) {

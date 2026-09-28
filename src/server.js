@@ -35,6 +35,7 @@ export async function buildApp({ config, pool, event, ids }) {
   });
 
   const emailProvider = createEmailProvider(config, app.log);
+  emailProvider.check().catch(() => {}); // läuft im Hintergrund, blockiert den Start nicht
   const smsProvider = createSmsProvider(config, app.log);
   const leads = createLeadService({ pool, config, event, ids, emailProvider, smsProvider, log: app.log });
 
