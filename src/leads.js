@@ -19,6 +19,8 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
   const secret = config.appSecret;
   const v = config.verify;
   const required = { email: v.email, sms: v.phone };
+  // Ohne SMS-Verifizierung genügt jede gültige Telefonnummer (auch Festnetz/Ausland).
+  const phoneOptions = v.phone ? { allowedCountries: config.sms.allowedCountries, requireMobile: true } : {};
   const hashToken = (t) => hmac(secret, `token:${t}`);
   const hashCode = (leadId, channel, code) => hmac(secret, `code:${leadId}:${channel}:${code}`);
 
@@ -63,7 +65,7 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
 
   // Anlegen oder – solange noch nicht abgeschlossen – Ändern eines Leads (z. B. Tippfehler in der E-Mail).
   async function submit(input, { leadId, token, userAgent } = {}) {
-    const { data, fieldErrors } = validateLead(input, event, { allowedCountries: config.sms.allowedCountries });
+    const { data, fieldErrors } = validateLead(input, event, phoneOptions);
     if (fieldErrors) throw new AppError(422, 'validation', 'Bitte prüfe deine Eingaben.', { fieldErrors });
     const companyId = ids.companyIds.get(data.companySlug);
 

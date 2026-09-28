@@ -107,7 +107,8 @@ export function loadConfig(env = process.env) {
     },
     verify: {
       email: e.VERIFY_EMAIL ?? true,
-      phone: e.VERIFY_PHONE ?? true,
+      // SMS-Verifizierung standardmäßig aus (kein SMS-Versand vorgesehen).
+      phone: e.VERIFY_PHONE ?? false,
       ttlMinutes: e.CODE_TTL_MINUTES,
       maxAttempts: e.CODE_MAX_ATTEMPTS,
       resendCooldownSeconds: e.CODE_RESEND_COOLDOWN_SECONDS,

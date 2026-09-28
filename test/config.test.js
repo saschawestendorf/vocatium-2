@@ -7,7 +7,7 @@ test('Defaults für Entwicklung', () => {
   assert.equal(c.email.provider, 'console');
   assert.deepEqual(c.sms.allowedCountries, ['DE']);
   assert.equal(c.verify.email, true);
-  assert.equal(c.verify.phone, true);
+  assert.equal(c.verify.phone, false);
 });
 
 test('Produktion verlangt Secrets und Provider-Keys', () => {
@@ -18,7 +18,7 @@ test('Produktion verlangt Secrets und Provider-Keys', () => {
 });
 
 test('Boolesche und Listen-Variablen', () => {
-  const c = loadConfig({ DATABASE_URL: 'postgres://x', VERIFY_PHONE: 'false', SMS_ALLOWED_COUNTRIES: 'de, at ,ch' });
-  assert.equal(c.verify.phone, false);
+  const c = loadConfig({ DATABASE_URL: 'postgres://x', VERIFY_PHONE: 'true', SMS_ALLOWED_COUNTRIES: 'de, at ,ch' });
+  assert.equal(c.verify.phone, true);
   assert.deepEqual(c.sms.allowedCountries, ['DE', 'AT', 'CH']);
 });

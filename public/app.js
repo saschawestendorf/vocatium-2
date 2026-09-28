@@ -1,4 +1,5 @@
 // Frontend „Ein Tag Chef sein.“ – Vanilla JS, ohne Build-Schritt.
+import { rebalance } from './budget.js';
 // Ablauf: start → budget → contact → verify → done. Kiosk-tauglich (Auto-Reset bei Inaktivität).
 
 const $app = document.getElementById('app');
@@ -156,7 +157,7 @@ function viewBudget() {
         <div class="amount-row">
           <button class="step" data-action="dec" data-slug="${esc(p.slug)}" aria-label="${step} € weniger" ${amount <= 0 ? 'disabled' : ''}>−</button>
           <input type="range" min="0" max="${total()}" step="${event.budget.stepEuro}" value="${amount}" data-slug="${esc(p.slug)}" aria-label="Betrag für ${esc(p.title)}">
-          <button class="step" data-action="inc" data-slug="${esc(p.slug)}" aria-label="${step} € mehr" ${rest <= 0 ? 'disabled' : ''}>+</button>
+          <button class="step" data-action="inc" data-slug="${esc(p.slug)}" aria-label="${step} € mehr" ${amount >= total() ? 'disabled' : ''}>+</button>
           <span class="amount" data-amount="${esc(p.slug)}">${euro(amount)}</span>
         </div>
         ${rest > 0 ? `<button class="btn-link small" data-action="rest" data-slug="${esc(p.slug)}">Rest (${euro(rest)}) hierhin</button>` : ''}
@@ -198,7 +199,7 @@ function viewContact() {
       ${field('firstName', 'Vorname', textInput('firstName', 'text', 'autocomplete="given-name" maxlength="100" required'))}
       ${field('lastName', 'Name', textInput('lastName', 'text', 'autocomplete="family-name" maxlength="100" required'))}
     </div>
-    ${field('phone', 'Handynummer', textInput('phone', 'tel', 'autocomplete="tel" inputmode="tel" placeholder="0151 23456789" maxlength="40" required'), { hint: 'Du bekommst einen Bestätigungscode per SMS.' })}
+    ${field('phone', event.verify.phone ? 'Handynummer' : 'Telefonnummer', textInput('phone', 'tel', 'autocomplete="tel" inputmode="tel" placeholder="0151 23456789" maxlength="40" required'), { hint: event.verify.phone ? 'Du bekommst einen Bestätigungscode per SMS.' : '' })}
     ${field('email', 'E-Mail', textInput('email', 'email', 'autocomplete="email" inputmode="email" placeholder="name@beispiel.de" maxlength="254" required'), { hint: 'Du bekommst einen Bestätigungscode per E-Mail.' })}
     <div class="field ${state.fieldErrors.consent ? 'invalid' : ''}">
       <label class="check"><input type="checkbox" name="consent" ${f.consent ? 'checked' : ''}><span>${esc(event.consentText)}${privacy}</span></label>
@@ -240,7 +241,9 @@ function viewVerify() {
   return `${progress()}
   <p class="kicker">Schritt 3 · Bestätigen</p>
   <h2>Fast geschafft, ${esc(state.form.firstName)}!</h2>
-  <p class="lead">Wir haben dir Codes geschickt. Gib sie hier ein, um deine Kontaktdaten zu bestätigen.</p>
+  <p class="lead">${requiredChannels().length > 1
+    ? 'Wir haben dir Codes geschickt. Gib sie hier ein, um deine Kontaktdaten zu bestätigen.'
+    : `Wir haben dir einen Code geschickt. Gib ihn hier ein, um deine ${requiredChannels()[0] === 'sms' ? 'Handynummer' : 'E-Mail-Adresse'} zu bestätigen.`}</p>
   <div class="verify">${requiredChannels().map(channelCard).join('')}</div>
   ${alert()}
   <div class="actions"><button class="btn btn-ghost" data-action="back-contact">Daten korrigieren</button></div>`;
@@ -292,19 +295,25 @@ function render() {
 }
 
 // ---------- Budget-Logik ----------
+let dragBase = null; // Ausgangsstand während eines Regler-Zugs
+
 function setAmount(slug, value, { partial = false } = {}) {
-  const current = state.allocations[slug] || 0;
-  const stepEuro = event.budget.stepEuro;
-  const max = current + Math.max(0, remaining());
-  let next = Math.round(Number(value) / stepEuro) * stepEuro;
-  next = Math.max(0, Math.min(Number.isFinite(next) ? next : 0, max));
-  state.allocations[slug] = next;
+  if (partial) dragBase ||= { ...state.allocations };
+  const base = partial ? dragBase : state.allocations;
+  const complete = Object.fromEntries(event.projects.map((p) => [p.slug, base[p.slug] || 0]));
+  state.allocations = rebalance(complete, slug, value, { total: total(), step: event.budget.stepEuro });
   state.error = '';
   if (!partial) return render();
-  // Teil-Update beim Ziehen des Reglers (kein Neuaufbau → Fokus/Drag bleibt erhalten).
-  const range = $app.querySelector(`input[type=range][data-slug="${CSS.escape(slug)}"]`);
-  if (range && Number(range.value) !== next) range.value = next;
-  $app.querySelector(`[data-amount="${CSS.escape(slug)}"]`).textContent = euro(next);
+  // Teil-Update beim Ziehen (kein Neuaufbau → Drag bleibt erhalten); alle Regler folgen live.
+  for (const p of event.projects) {
+    const amount = state.allocations[p.slug] || 0;
+    const sel = CSS.escape(p.slug);
+    const range = $app.querySelector(`input[type=range][data-slug="${sel}"]`);
+    if (range && Number(range.value) !== amount) range.value = amount;
+    $app.querySelector(`[data-amount="${sel}"]`).textContent = euro(amount);
+    const dec = $app.querySelector(`[data-action="dec"][data-slug="${sel}"]`);
+    if (dec) dec.disabled = amount <= 0;
+  }
   const bar = $app.querySelector('[data-ref="bar"]');
   bar.innerHTML = budgetBar();
   applyDynamicStyles(bar);
@@ -331,7 +340,7 @@ function clientValidate() {
   if (!f.companySlug) e.companySlug = 'Bitte wähle den Betrieb vom Glücksrad.';
   if (!f.firstName) e.firstName = 'Pflichtfeld';
   if (!f.lastName) e.lastName = 'Pflichtfeld';
-  if (!f.phone) e.phone = 'Bitte gib deine Handynummer an.';
+  if (!f.phone) e.phone = 'Bitte gib deine Telefonnummer an.';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email)) e.email = 'Bitte gib eine gültige E-Mail-Adresse an.';
   if (!f.consent) e.consent = 'Bitte bestätige die Einwilligung.';
   return e;
@@ -461,7 +470,10 @@ $app.addEventListener('input', (e) => {
 });
 
 $app.addEventListener('change', (e) => {
-  if (e.target.matches('input[type=range]')) render(); // Buttons/Rest-Links aktualisieren
+  if (e.target.matches('input[type=range]')) {
+    dragBase = null;
+    render(); // Buttons/Rest-Links aktualisieren
+  }
 });
 
 $app.addEventListener('submit', (e) => {

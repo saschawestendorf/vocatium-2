@@ -48,12 +48,18 @@ test('normalizePhone: deutsche Mobilnummern in verschiedenen Schreibweisen', () 
   }
 });
 
-test('normalizePhone: Festnetz, Unsinn und nicht freigegebene Länder', () => {
-  assert.match(normalizePhone('03831 123456').error, /Handynummer an/);
-  assert.match(normalizePhone('12').error, /ungültig/);
-  assert.match(normalizePhone('').error, /Handynummer/);
-  assert.match(normalizePhone('+43 664 1234567').error, /nicht unterstützt/);
-  assert.equal(normalizePhone('+43 664 1234567', { allowedCountries: ['DE', 'AT'] }).e164, '+436641234567');
+test('normalizePhone ohne SMS: jede gültige Nummer, auch Festnetz/Ausland', () => {
+  assert.equal(normalizePhone('03831 123456').e164, '+493831123456');
+  assert.equal(normalizePhone('+43 664 1234567').e164, '+436641234567');
+  assert.match(normalizePhone('12').error, /Telefonnummer ist ungültig/);
+  assert.match(normalizePhone('').error, /Telefonnummer/);
+});
+
+test('normalizePhone mit SMS: nur Mobil aus freigegebenen Ländern', () => {
+  const sms = { allowedCountries: ['DE'], requireMobile: true };
+  assert.match(normalizePhone('03831 123456', sms).error, /Handynummer an/);
+  assert.match(normalizePhone('+43 664 1234567', sms).error, /nicht unterstützt/);
+  assert.equal(normalizePhone('+43 664 1234567', { ...sms, allowedCountries: ['DE', 'AT'] }).e164, '+436641234567');
 });
 
 test('validateAllocations: exakte Vollverteilung', () => {
@@ -84,7 +90,7 @@ test('validateAllocations: Teilverteilung erlaubt, wenn konfiguriert', () => {
 });
 
 test('validateLead: gültige Eingabe wird normalisiert', () => {
-  const { data, fieldErrors } = validateLead(base, event, { allowedCountries: ['DE'] });
+  const { data, fieldErrors } = validateLead(base, event);
   assert.equal(fieldErrors, undefined);
   assert.equal(data.firstName, 'Franz');
   assert.equal(data.email, 'mail@example.com');
@@ -92,7 +98,7 @@ test('validateLead: gültige Eingabe wird normalisiert', () => {
 });
 
 test('validateLead: sammelt Feldfehler', () => {
-  const { fieldErrors } = validateLead({ ...base, companySlug: 'x', consent: false, firstName: '' }, event, { allowedCountries: ['DE'] });
+  const { fieldErrors } = validateLead({ ...base, companySlug: 'x', consent: false, firstName: '' }, event);
   assert.deepEqual(Object.keys(fieldErrors).sort(), ['companySlug', 'consent', 'firstName']);
-  assert.ok(validateLead(null, event, { allowedCountries: ['DE'] }).fieldErrors.allocations);
+  assert.ok(validateLead(null, event).fieldErrors.allocations);
 });

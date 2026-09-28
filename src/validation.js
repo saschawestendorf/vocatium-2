@@ -19,16 +19,18 @@ export function normalizeEmail(value) {
   return email;
 }
 
-// Liefert { e164, country } oder { error }. Mobilnummer ist Pflicht, da per SMS verifiziert wird.
-export function normalizePhone(value, { defaultCountry = 'DE', allowedCountries = ['DE'], requireMobile = true } = {}) {
+// Liefert { e164, country } oder { error }.
+// Mit SMS-Verifizierung: requireMobile + allowedCountries (Kostenschutz). Ohne: jede gültige Nummer.
+export function normalizePhone(value, { defaultCountry = 'DE', allowedCountries = [], requireMobile = false } = {}) {
+  const noun = requireMobile ? 'Handynummer' : 'Telefonnummer';
   const raw = cleanText(value);
-  if (!raw) return { error: 'Bitte gib deine Handynummer an.' };
+  if (!raw) return { error: `Bitte gib deine ${noun} an.` };
   // "0049..." -> "+49..."
   const input = raw.replace(/^00/, '+');
   const phone = parsePhoneNumberFromString(input, defaultCountry);
-  if (!phone || !phone.isValid()) return { error: 'Die Handynummer ist ungültig.' };
+  if (!phone || !phone.isValid()) return { error: `Die ${noun} ist ungültig.` };
   if (allowedCountries.length && !allowedCountries.includes(phone.country)) {
-    return { error: 'Handynummern aus diesem Land werden leider nicht unterstützt.' };
+    return { error: `${noun}n aus diesem Land werden leider nicht unterstützt.` };
   }
   const type = phone.getType();
   if (requireMobile && type && !['MOBILE', 'FIXED_LINE_OR_MOBILE'].includes(type)) {
@@ -86,7 +88,8 @@ export const leadInputSchema = z.object({
 });
 
 // Vollständige fachliche Validierung. Liefert { data } oder { fieldErrors }.
-export function validateLead(input, event, { allowedCountries }) {
+// phoneOptions: siehe normalizePhone.
+export function validateLead(input, event, phoneOptions = {}) {
   const fieldErrors = {};
   const parsed = leadInputSchema.safeParse(input);
   if (!parsed.success) {
@@ -107,7 +110,7 @@ export function validateLead(input, event, { allowedCountries }) {
   const email = normalizeEmail(body.email);
   if (!email) fieldErrors.email = 'Bitte gib eine gültige E-Mail-Adresse an.';
 
-  const phone = normalizePhone(body.phone, { allowedCountries });
+  const phone = normalizePhone(body.phone, phoneOptions);
   if (phone.error) fieldErrors.phone = phone.error;
 
   if (Object.keys(fieldErrors).length) return { fieldErrors };
