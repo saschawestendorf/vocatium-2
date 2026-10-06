@@ -99,11 +99,23 @@ a { color: var(--gold); }
 .meter { height: 8px; margin-top: 10px; border-radius: 4px; background: var(--navy-line); overflow: hidden; }
 .meter > i { display: block; height: 100%; background: var(--gold); transition: width .15s; }
 .projects { display: grid; gap: 14px; }
-.project { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 16px; align-items: start; }
-.project > div { min-width: 0; }
-.project .thumb { width: 84px; height: 84px; border-radius: 12px; object-fit: cover; background: var(--navy-input); display: grid; place-items: center; color: var(--gold); }
-.project .thumb svg { width: 36px; height: 36px; }
-.project p { margin: 0 0 10px; color: var(--muted); font-size: 15px; }
+.project { display: grid; gap: 14px; }
+.project-head { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 16px; align-items: start; }
+.project-info { min-width: 0; }
+.project-info p { margin: 0; color: var(--muted); font-size: 15px; }
+.tag { display: inline-block; margin: 0 0 8px; padding: 3px 10px; border-radius: 999px; background: rgba(231, 169, 60, .16); color: var(--gold); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.poster { margin: 0; }
+.poster-btn { display: block; width: 100%; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--navy-input); cursor: zoom-in; line-height: 0; }
+.poster-btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.poster img { display: block; width: 100%; height: auto; }
+.poster figcaption, .poster-dialog figcaption { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.3; text-align: center; }
+.poster-empty { display: grid; place-items: center; aspect-ratio: 2 / 3; border-radius: 10px; background: var(--navy-input); color: var(--gold); }
+.poster-empty svg { width: 36px; height: 36px; }
+.poster-dialog { max-width: min(94vw, 720px); max-height: 94vh; padding: 12px; border: 0; border-radius: var(--radius); background: var(--navy-card); color: var(--cream); overflow: auto; }
+.poster-dialog::backdrop { background: rgba(5, 15, 35, .82); }
+.poster-dialog figure { margin: 0; }
+.poster-dialog img { display: block; width: 100%; max-height: calc(94vh - 64px); object-fit: contain; border-radius: 10px; }
+.poster-close { position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(14, 42, 82, .85); color: var(--cream); font: 700 26px/1 var(--sans); cursor: pointer; }
 .amount-row { display: flex; align-items: center; gap: 10px; }
 .amount-row .amount { min-width: 104px; text-align: right; font: 700 20px/1 var(--sans); font-variant-numeric: tabular-nums; }
 .step { width: 44px; height: 44px; flex: none; border-radius: 50%; border: 1.5px solid var(--navy-line); background: transparent; color: var(--cream); font: 700 22px/1 var(--sans); cursor: pointer; }
@@ -157,9 +169,10 @@ footer.site { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--n
 
 @media (max-width: 560px) {
   .grid-2 { grid-template-columns: 1fr; }
-  .project { grid-template-columns: minmax(0, 1fr); padding: 16px; }
-  .project div.thumb { display: none; } /* Platzhalter ohne Bild auf Mobil ausblenden */
-  .project img.thumb { width: 100%; height: 140px; }
+  .project { padding: 16px; }
+  .project-head { grid-template-columns: 104px minmax(0, 1fr); gap: 12px; }
+  .poster-empty { display: none; }
+  .project-head:has(.poster-empty) { grid-template-columns: minmax(0, 1fr); }
   .amount-row { gap: 8px; }
   .step { width: 40px; height: 40px; }
   .amount-row .amount { min-width: 76px; font-size: 17px; }

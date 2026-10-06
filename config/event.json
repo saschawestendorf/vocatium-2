@@ -18,13 +18,48 @@
     {
       "slug": "end-polio-now",
       "title": "End Polio Now",
+      "label": "Weltweit · Gesundheit",
       "description": "Weltweite Bekämpfung der Kinderlähmung – das größte Projekt von Rotary.",
-      "imageUrl": null
+      "imageUrl": "/assets/projects/end-polio-now.webp",
+      "imageAlt": "Plakat „End Polio Now“: lächelndes Mädchen mit Beinschienen, Botschaft „Polio besiegen. Für immer.“",
+      "aiGenerated": true
     },
-    { "slug": "projekt-2", "title": "Projekt 2", "description": "Beschreibung folgt.", "imageUrl": null },
-    { "slug": "projekt-3", "title": "Projekt 3", "description": "Beschreibung folgt.", "imageUrl": null },
-    { "slug": "projekt-4", "title": "Projekt 4", "description": "Beschreibung folgt.", "imageUrl": null },
-    { "slug": "projekt-5", "title": "Projekt 5", "description": "Beschreibung folgt.", "imageUrl": null }
+    {
+      "slug": "stark-ohne-gewalt",
+      "title": "Stark ohne Gewalt",
+      "label": "Stralsund · Schule",
+      "description": "Anti-Gewalt-Training an der Schule in Stralsund: Selbstbewusstsein stärken, Konflikte lösen, respektvoll miteinander umgehen.",
+      "imageUrl": "/assets/projects/stark-ohne-gewalt.webp",
+      "imageAlt": "Plakat „Stark ohne Gewalt“: Jugendliche zeigt die Hand mit der Aufschrift „Stop Gewalt“",
+      "aiGenerated": true
+    },
+    {
+      "slug": "clean-up-day",
+      "title": "Clean Up Day",
+      "label": "Stralsund · Umwelt",
+      "description": "Müllsammelaktion für ein sauberes Stralsund und eine saubere Ostsee – alle sind willkommen.",
+      "imageUrl": "/assets/projects/clean-up-day.webp",
+      "imageAlt": "Plakat „Clean Up Day“: Freiwillige sammeln Müll vor der Stralsunder Altstadt",
+      "aiGenerated": true
+    },
+    {
+      "slug": "deutschlandstipendium",
+      "title": "Deutschlandstipendium",
+      "label": "Bildung · Deutschland",
+      "description": "Förderung von Studierenden mit herausragenden Leistungen und Engagement – je zur Hälfte von Bund und Rotary.",
+      "imageUrl": "/assets/projects/deutschlandstipendium.webp",
+      "imageAlt": "Plakat „Talente fördern – Zukunft gestalten“: Studentin mit Unterlagen auf dem Campus",
+      "aiGenerated": true
+    },
+    {
+      "slug": "trinkwasser-malawi",
+      "title": "Trinkwasser in Malawi",
+      "label": "International · Wasser",
+      "description": "Tiefenbohrloch mit Solarpumpe, Wassertank und Zapfstellen für eine Schule mit über 900 Kindern.",
+      "imageUrl": "/assets/projects/trinkwasser-malawi.webp",
+      "imageAlt": "Plakat „Gemeinsam mehr möglich“: lachender Junge trinkt am Wasserhahn",
+      "aiGenerated": true
+    }
   ],
   "wheel": {
     "title": "Chef-Momente meistern",
@@ -32,11 +67,26 @@
     "question": "Was hat dein Glücksrad angezeigt?"
   },
   "companies": [
-    { "slug": "betrieb-1", "name": "Betrieb 1" },
-    { "slug": "betrieb-2", "name": "Betrieb 2" },
-    { "slug": "betrieb-3", "name": "Betrieb 3" },
-    { "slug": "betrieb-4", "name": "Betrieb 4" },
-    { "slug": "betrieb-5", "name": "Betrieb 5" }
+    {
+      "slug": "rechtsanwalt",
+      "name": "Rechtsanwalt"
+    },
+    {
+      "slug": "apotheker",
+      "name": "Apotheker"
+    },
+    {
+      "slug": "energieversorgung",
+      "name": "Chef der Energieversorgung"
+    },
+    {
+      "slug": "pflegehotel",
+      "name": "Chef des Pflegehotels"
+    },
+    {
+      "slug": "tierpark",
+      "name": "Chef des Tierparks"
+    }
   ],
   "consentText": "Ich willige ein, dass der Rotary Club Stralsund und der ausgeloste Betrieb mich zum Gewinn „Ein Tag Chef sein“ per E-Mail oder Telefon kontaktieren dürfen. Die Einwilligung kann ich jederzeit widerrufen.",
   "kiosk": {
