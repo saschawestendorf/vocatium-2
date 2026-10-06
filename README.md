@@ -16,7 +16,7 @@ Node.js (Fastify) · PostgreSQL · Resend (E-Mail) · Deploy auf Railway.
 
 **Inhalte** (Projekte, Betriebe, Texte, Budget): `config/event.json`.
 Wird beim Start validiert und in die DB synchronisiert. Identität über `slug` – Titel ändern ist gefahrlos,
-entfernte Einträge werden deaktiviert (nicht gelöscht). Projektbilder: `imageUrl` (z. B. `/assets/polio.jpg` in `public/assets/`).
+entfernte Einträge werden deaktiviert (nicht gelöscht). Projektplakate: `imageUrl` (z. B. `/assets/projects/end-polio-now.webp`), `imageAlt`, `label` (Kategorie-Chip) und `aiGenerated` (blendet „KI-generierte Inhalte“ unter dem Plakat ein). Tipp auf das Plakat öffnet die Großansicht.
 Neues Event (z. B. nächste Messe): neuen `slug` vergeben → Leads bleiben getrennt.
 
 **Laufzeit** (Secrets, Provider): Umgebungsvariablen, siehe `.env.example`.

@@ -137,6 +137,26 @@ function budgetBar() {
     <div class="meter"><i data-pct="${pct}"></i></div>`;
 }
 
+const AI_NOTICE = 'KI-generierte Inhalte';
+
+// Plakat-Ansicht (Lightbox) auf Basis von <dialog>; liegt außerhalb von #app und überlebt render().
+let $poster = null;
+function showPoster(slug) {
+  const p = event.projects.find((x) => x.slug === slug);
+  if (!p?.imageUrl) return;
+  if (!$poster) {
+    $poster = document.createElement('dialog');
+    $poster.className = 'poster-dialog';
+    $poster.addEventListener('click', (e) => { if (e.target === $poster || e.target.closest('[data-close]')) $poster.close(); });
+    document.body.append($poster);
+  }
+  $poster.setAttribute('aria-label', `Plakat ${p.title}`);
+  $poster.innerHTML = `<button type="button" class="poster-close" data-close aria-label="Schließen">×</button>
+    <figure><img src="${esc(p.imageUrl)}" alt="${esc(p.imageAlt || `Plakat ${p.title}`)}">
+    ${p.aiGenerated ? `<figcaption>${AI_NOTICE}</figcaption>` : ''}</figure>`;
+  $poster.showModal();
+}
+
 function viewBudget() {
   const step = buttonStep();
   const rest = remaining();
@@ -149,11 +169,16 @@ function viewBudget() {
   <div class="projects">${event.projects
     .map((p) => {
       const amount = state.allocations[p.slug] || 0;
-      const thumb = p.imageUrl
-        ? `<img class="thumb" src="${esc(p.imageUrl)}" alt="" loading="lazy">`
-        : `<div class="thumb">${ICONS.heart}</div>`;
-      return `<div class="card project">${thumb}<div>
-        <h3>${esc(p.title)}</h3>${p.description ? `<p>${esc(p.description)}</p>` : ''}
+      const poster = p.imageUrl
+        ? `<figure class="poster"><button type="button" class="poster-btn" data-action="poster" data-slug="${esc(p.slug)}" aria-label="Plakat „${esc(p.title)}“ groß anzeigen">
+            <img src="${esc(p.imageUrl)}" alt="${esc(p.imageAlt || `Plakat ${p.title}`)}" loading="lazy"></button>
+            ${p.aiGenerated ? `<figcaption>${AI_NOTICE}</figcaption>` : ''}</figure>`
+        : `<div class="poster poster-empty" aria-hidden="true">${ICONS.heart}</div>`;
+      return `<div class="card project">
+        <div class="project-head">${poster}<div class="project-info">
+          ${p.label ? `<span class="tag">${esc(p.label)}</span>` : ''}
+          <h3>${esc(p.title)}</h3>${p.description ? `<p>${esc(p.description)}</p>` : ''}
+        </div></div>
         <div class="amount-row">
           <button class="step" data-action="dec" data-slug="${esc(p.slug)}" aria-label="${step} € weniger" ${amount <= 0 ? 'disabled' : ''}>−</button>
           <input type="range" min="0" max="${total()}" step="${event.budget.stepEuro}" value="${amount}" data-slug="${esc(p.slug)}" aria-label="Betrag für ${esc(p.title)}">
@@ -161,7 +186,7 @@ function viewBudget() {
           <span class="amount" data-amount="${esc(p.slug)}">${euro(amount)}</span>
         </div>
         ${rest > 0 ? `<button class="btn-link small" data-action="rest" data-slug="${esc(p.slug)}">Rest (${euro(rest)}) hierhin</button>` : ''}
-      </div></div>`;
+      </div>`;
     })
     .join('')}</div>
   ${alert()}
@@ -444,6 +469,7 @@ $app.addEventListener('click', (e) => {
   const step = buttonStep();
   switch (action) {
     case 'start': return go('budget');
+    case 'poster': return showPoster(slug);
     case 'inc': return setAmount(slug, (state.allocations[slug] || 0) + step);
     case 'dec': return setAmount(slug, (state.allocations[slug] || 0) - step);
     case 'rest': return setAmount(slug, (state.allocations[slug] || 0) + remaining());

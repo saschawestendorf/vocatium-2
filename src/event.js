@@ -28,7 +28,17 @@ const eventSchema = z
       hint: z.string().default(''),
     }),
     projects: z
-      .array(z.object({ slug, title: text, description: z.string().default(''), imageUrl: optionalUrl }))
+      .array(
+        z.object({
+          slug,
+          title: text,
+          label: z.string().trim().default(''), // kleines Kategorie-Label in der Übersicht
+          description: z.string().default(''),
+          imageUrl: optionalUrl, // Plakat
+          imageAlt: z.string().default(''),
+          aiGenerated: z.boolean().default(false), // blendet „KI-generierte Inhalte“ unter dem Bild ein
+        }),
+      )
       .min(1)
       .max(10),
     wheel: z.object({ title: text, intro: z.string().default(''), question: text }),

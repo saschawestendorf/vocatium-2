@@ -6,8 +6,8 @@ import { cleanText, normalizeEmail, normalizePhone, validateAllocations, validat
 
 const event = parseEventConfig(JSON.parse(readFileSync(new URL('../config/event.json', import.meta.url))));
 const base = {
-  allocations: { 'end-polio-now': 6000, 'projekt-2': 4000 },
-  companySlug: 'betrieb-1',
+  allocations: { 'end-polio-now': 6000, 'stark-ohne-gewalt': 4000 },
+  companySlug: 'rechtsanwalt',
   firstName: ' Franz ',
   lastName: 'Beispiel',
   phone: '0151 23456789',
@@ -19,6 +19,15 @@ test('Event-Konfiguration ist gültig', () => {
   assert.equal(event.projects.length, 5);
   assert.equal(event.companies.length, 5);
   assert.equal(event.budget.totalEuro, 10000);
+});
+
+test('Event-Konfiguration: Plakate sind KI-gekennzeichnet und vorhanden', async () => {
+  const { existsSync } = await import('node:fs');
+  for (const p of event.projects) {
+    assert.ok(p.label, `Label fehlt: ${p.slug}`);
+    assert.equal(p.aiGenerated, true);
+    assert.ok(existsSync(new URL(`../public${p.imageUrl}`, import.meta.url)), `Plakat fehlt: ${p.imageUrl}`);
+  }
 });
 
 test('Event-Konfiguration: doppelte Slugs und krumme Schritte werden abgelehnt', () => {
@@ -65,16 +74,16 @@ test('normalizePhone mit SMS: nur Mobil aus freigegebenen Ländern', () => {
 test('validateAllocations: exakte Vollverteilung', () => {
   const ok = validateAllocations({ 'end-polio-now': 10000 }, event);
   assert.equal(ok.sum, 10000);
-  assert.equal(ok.allocations['projekt-5'], 0);
-  assert.equal(validateAllocations({ 'end-polio-now': '6.000', 'projekt-2': 4000 }, event).sum, 10000);
+  assert.equal(ok.allocations['trinkwasser-malawi'], 0);
+  assert.equal(validateAllocations({ 'end-polio-now': '6.000', 'stark-ohne-gewalt': 4000 }, event).sum, 10000);
 });
 
 test('validateAllocations: Fehlerfälle', () => {
   const cases = [
     [{ 'end-polio-now': 9000 }, /noch 1000 € übrig/],
-    [{ 'end-polio-now': 10000, 'projekt-2': 100 }, /zu viel/],
-    [{ 'end-polio-now': 9950, 'projekt-2': 50 }, /Schritten/],
-    [{ 'end-polio-now': -100, 'projekt-2': 10100 }, /Ungültiger Betrag/],
+    [{ 'end-polio-now': 10000, 'stark-ohne-gewalt': 100 }, /zu viel/],
+    [{ 'end-polio-now': 9950, 'stark-ohne-gewalt': 50 }, /Schritten/],
+    [{ 'end-polio-now': -100, 'stark-ohne-gewalt': 10100 }, /Ungültiger Betrag/],
     [{ 'end-polio-now': 1.5 }, /Ungültiger Betrag/],
     [{ unbekannt: 10000 }, /Unbekanntes Projekt/],
     [{}, /Bitte verteile/],
