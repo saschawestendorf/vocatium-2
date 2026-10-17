@@ -69,23 +69,28 @@
   "companies": [
     {
       "slug": "rechtsanwalt",
-      "name": "Rechtsanwalt"
+      "name": "Rechtsanwalt",
+      "wheelLabel": "Rechtsanwalt"
     },
     {
       "slug": "apotheker",
-      "name": "Apotheker"
+      "name": "Apotheker",
+      "wheelLabel": "Apotheker"
     },
     {
       "slug": "energieversorgung",
-      "name": "Chef der Energieversorgung"
+      "name": "Chef der Energieversorgung",
+      "wheelLabel": "Energie"
     },
     {
       "slug": "pflegehotel",
-      "name": "Chef des Pflegehotels"
+      "name": "Chef des Pflegehotels",
+      "wheelLabel": "Pflegehotel"
     },
     {
       "slug": "tierpark",
-      "name": "Chef des Tierparks"
+      "name": "Chef des Tierparks",
+      "wheelLabel": "Tierpark"
     }
   ],
   "consentText": "Ich willige ein, dass der Rotary Club Stralsund und der ausgeloste Betrieb mich zum Gewinn „Ein Tag Chef sein“ per E-Mail oder Telefon kontaktieren dürfen. Die Einwilligung kann ich jederzeit widerrufen.",

@@ -29,3 +29,9 @@ test('Resend wird automatisch aktiv, sobald RESEND_API_KEY gesetzt ist', () => {
   assert.throws(() => loadConfig({ DATABASE_URL: 'postgres://x', RESEND_API_KEY: 're_x' }), /EMAIL_FROM/);
   assert.equal(loadConfig({ DATABASE_URL: 'postgres://x', RESEND_API_KEY: 're_x', EMAIL_PROVIDER: 'console' }).email.provider, 'console');
 });
+
+test('Virtuelles Glücksrad ist standardmäßig aus und per VIRTUAL_WHEEL schaltbar', () => {
+  assert.equal(loadConfig({ DATABASE_URL: 'postgres://x' }).virtualWheel, false);
+  assert.equal(loadConfig({ DATABASE_URL: 'postgres://x', VIRTUAL_WHEEL: 'TRUE' }).virtualWheel, true);
+  assert.equal(loadConfig({ DATABASE_URL: 'postgres://x', VIRTUAL_WHEEL: 'false' }).virtualWheel, false);
+});

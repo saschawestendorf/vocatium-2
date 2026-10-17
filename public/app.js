@@ -1,10 +1,11 @@
 // Frontend „Ein Tag Chef sein.“ – Vanilla JS, ohne Build-Schritt.
 import { rebalance } from './budget.js';
-// Ablauf: start → budget → contact → verify → done. Kiosk-tauglich (Auto-Reset bei Inaktivität).
+import { wheelMarkup, spinTarget, normalizeRotation } from './wheel.js';
+// Ablauf: start → budget → [spin, nur mit virtuellem Glücksrad] → contact → verify → done. Kiosk-tauglich (Auto-Reset bei Inaktivität).
 
 const $app = document.getElementById('app');
 const STORAGE_KEY = 'chef-lead-state-v1';
-const STEPS = ['start', 'budget', 'contact', 'verify', 'done'];
+const STEPS = ['start', 'budget', 'spin', 'contact', 'verify', 'done'];
 
 const ICONS = {
   briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>',
@@ -27,6 +28,7 @@ function freshState() {
     form: { companySlug: '', firstName: '', lastName: '', phone: '', email: '', consent: false },
     fieldErrors: {},
     error: '',
+    wheelRotation: 0, // Endstellung des virtuellen Glücksrads (Grad)
     lead: null, // { leadId, token, status, email, phone, verification }
     channels: {}, // { email|sms: { target, cooldownUntil, error, info } }
     busy: false,
@@ -44,11 +46,21 @@ const budgetValid = () => {
   return sum > 0 && sum <= total() && (!event.budget.requireFullAllocation || sum === total());
 };
 const buttonStep = () => event.budget.stepEuro * (total() / event.budget.stepEuro >= 50 ? 5 : 1);
+const virtual = () => event?.virtualWheel === true;
+// Sichtbare Schritte (Fortschrittsbalken, Beschriftung) – mit virtuellem Glücksrad kommt „spin“ dazu.
+const flow = () => (virtual() ? ['budget', 'spin', 'contact', 'verify', 'done'] : ['budget', 'contact', 'verify', 'done']);
+const stepNo = (step) => flow().indexOf(step) + 1;
+// Schutz vor ungültigen Zuständen (z. B. gespeicherter Schritt passt nicht zur aktuellen Konfiguration).
+function normalizeStep(step) {
+  if (step === 'spin' && !virtual()) return 'contact';
+  if (step === 'contact' && virtual() && !state.form.companySlug) return 'spin';
+  return step;
+}
 const requiredChannels = () => ['email', 'sms'].filter((c) => state.lead?.verification?.[c]?.required);
 
 function save() {
   try {
-    const { busy, ...rest } = state;
+    const { busy, spinning: _spinning, ...rest } = state;
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ eventSlug: event.slug, state: rest }));
   } catch { /* Speicher nicht verfügbar – App funktioniert trotzdem */ }
 }
@@ -79,7 +91,7 @@ async function api(method, url, body) {
 }
 
 function go(step) {
-  state.step = step;
+  state.step = normalizeStep(step);
   state.error = '';
   render();
   window.scrollTo({ top: 0 });
@@ -97,8 +109,9 @@ function header() {
   return `<div class="head"><p class="kicker">${esc(event.organizer)}</p><img class="logo" src="/assets/logo.png" alt=""></div>`;
 }
 function progress() {
-  const idx = ['budget', 'contact', 'verify', 'done'].indexOf(state.step);
-  return `<div class="progress" aria-hidden="true">${[0, 1, 2, 3].map((i) => `<span class="${i <= idx ? 'on' : ''}"></span>`).join('')}</div>`;
+  const steps = flow();
+  const idx = steps.indexOf(state.step);
+  return `<div class="progress" aria-hidden="true">${steps.map((_, i) => `<span class="${i <= idx ? 'on' : ''}"></span>`).join('')}</div>`;
 }
 function footer() {
   const site = event.website ? `<a href="${esc(event.website)}" target="_blank" rel="noopener">${esc(event.website.replace(/^https?:\/\//, ''))}</a>` : '';
@@ -161,7 +174,7 @@ function viewBudget() {
   const step = buttonStep();
   const rest = remaining();
   return `${progress()}
-  <p class="kicker">Schritt 1 · Budget</p>
+  <p class="kicker">Schritt ${stepNo('budget')} · Budget</p>
   <h2>${esc(event.claim)}</h2>
   <p class="lead">${esc(event.budget.hint)}</p>
   <p class="claim">${esc(event.budget.question)}</p>
@@ -196,6 +209,107 @@ function viewBudget() {
   </div>`;
 }
 
+// ---------- Virtuelles Glücksrad ----------
+const wonCompany = () => event.companies.find((c) => c.slug === state.form.companySlug);
+
+function wonCard(variant = '') {
+  const c = wonCompany();
+  if (!c) return '';
+  return `<div class="win ${variant}" role="status">
+    <p class="kicker">Gewonnen!</p>
+    <div class="win-name">${esc(c.name)}</div>
+    <p class="win-text">Dein Gewinn: ein Tag als Chefin oder Chef – wir melden uns bei dir.</p>
+  </div>`;
+}
+
+function viewSpin() {
+  const won = !!wonCompany();
+  return `${progress()}
+  <p class="kicker">Schritt ${stepNo('spin')} · Glücksrad</p>
+  <h2>${esc(event.wheel.title)}</h2>
+  <p class="lead">${esc(event.wheel.intro)}</p>
+  <div class="wheel-stage ${won ? 'done' : ''}" data-ref="stage" ${won ? '' : 'data-action="spin" role="button" tabindex="0" aria-label="Glücksrad drehen"'}>
+    ${wheelMarkup(event.companies)}
+  </div>
+  ${won ? wonCard() : '<p class="spin-hint">Jede Drehung gewinnt – viel Glück!</p>'}
+  ${alert()}
+  <div class="actions">
+    <button class="btn btn-ghost" data-action="back-budget-spin" ${state.spinning ? 'disabled' : ''}>Zurück</button>
+    ${won
+      ? `<button class="btn btn-primary" data-action="spin-next">Weiter ${ICONS.arrow}</button>`
+      : `<button class="btn btn-primary btn-spin" data-action="spin" data-ref="spin" ${state.spinning ? 'disabled' : ''}>${ICONS.wheel} Glücksrad drehen</button>`}
+  </div>`;
+}
+
+const randomInt = (n) => crypto.getRandomValues(new Uint32Array(1))[0] % n;
+const randomUnit = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+let spinning = false;
+
+function startSpin() {
+  if (spinning || wonCompany() || state.step !== 'spin') return;
+  const stage = $app.querySelector('[data-ref="stage"]');
+  const rotor = stage?.querySelector('.wheel-rotor');
+  if (!rotor) return;
+  const n = event.companies.length;
+  const index = randomInt(n); // Es gewinnt immer – das Feld wird vorab gezogen, das Rad läuft darauf zu.
+  const target = spinTarget(index, n, { turns: 6 + randomInt(3), offset: randomUnit() - 0.5 });
+  const ms = reducedMotion() ? 600 : 6000;
+  const startedState = state;
+  spinning = true;
+  state.spinning = true;
+  stage.classList.add('spinning');
+  stage.removeAttribute('data-action');
+  $app.querySelectorAll('[data-action="spin"], [data-action="back-budget-spin"]').forEach((b) => (b.disabled = true));
+  rotor.style.transition = `transform ${ms}ms cubic-bezier(.12,.62,.08,1)`;
+  void rotor.offsetWidth; // Reflow, damit die Transition startet
+  rotor.style.transform = `rotate(${target}deg)`;
+  setTimeout(() => {
+    spinning = false;
+    if (state !== startedState) return; // zwischenzeitlich zurückgesetzt (Kiosk-Reset)
+    state.spinning = false;
+    state.wheelRotation = normalizeRotation(target);
+    state.form.companySlug = event.companies[index].slug;
+    render();
+    celebrate();
+  }, ms + 150);
+}
+
+// Konfetti auf Canvas (kein Inline-Style nötig); verschwindet nach wenigen Sekunden.
+function celebrate() {
+  try { navigator.vibrate?.([80, 60, 160]); } catch { /* nicht überall verfügbar */ }
+  if (reducedMotion()) return;
+  const canvas = document.createElement('canvas');
+  canvas.className = 'confetti';
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = (canvas.width = innerWidth * dpr);
+  const H = (canvas.height = innerHeight * dpr);
+  const colors = ['#e63946', '#ffb703', '#2a9d8f', '#3a86ff', '#8338ec', '#fb5607', '#06d6a0', '#ffffff'];
+  const parts = Array.from({ length: 170 }, () => ({
+    x: W / 2 + (Math.random() - 0.5) * W * 0.2, y: H * 0.35,
+    vx: (Math.random() - 0.5) * 16 * dpr, vy: (-6 - Math.random() * 12) * dpr,
+    s: (5 + Math.random() * 7) * dpr, r: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4,
+    c: colors[Math.floor(Math.random() * colors.length)],
+  }));
+  document.body.append(canvas);
+  const t0 = performance.now();
+  (function frame(t) {
+    const age = t - t0;
+    ctx.clearRect(0, 0, W, H);
+    for (const p of parts) {
+      p.vy += 0.38 * dpr; p.vx *= 0.995; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, (3600 - age) / 800));
+      ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c;
+      ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
+      ctx.restore();
+    }
+    if (age < 3600) requestAnimationFrame(frame); else canvas.remove();
+  })(t0);
+}
+
 function field(name, label, input, { required = true, hint = '' } = {}) {
   const err = state.fieldErrors[name];
   return `<div class="field ${err ? 'invalid' : ''}">
@@ -215,11 +329,11 @@ function viewContact() {
     .join('');
   const privacy = event.privacyUrl ? ` <a href="${esc(event.privacyUrl)}" target="_blank" rel="noopener">Datenschutzhinweise</a>` : '';
   return `${progress()}
-  <p class="kicker">Schritt 2 · Glücksrad</p>
-  <h2>${esc(event.wheel.title)}</h2>
-  <p class="lead">${esc(event.wheel.intro)}</p>
+  <p class="kicker">Schritt ${stepNo('contact')} · ${virtual() ? 'Deine Daten' : 'Glücksrad'}</p>
+  <h2>${virtual() ? 'Deine Kontaktdaten' : esc(event.wheel.title)}</h2>
+  <p class="lead">${virtual() ? 'Damit wir dich zu deinem Gewinn kontaktieren können.' : esc(event.wheel.intro)}</p>
   <form data-form="contact" novalidate>
-    ${field('companySlug', event.wheel.question, `<select id="f-companySlug" name="companySlug" required><option value="">Bitte wählen …</option>${options}</select>`)}
+    ${virtual() ? wonCard('compact') : field('companySlug', event.wheel.question, `<select id="f-companySlug" name="companySlug" required><option value="">Bitte wählen …</option>${options}</select>`)}
     <div class="grid-2">
       ${field('firstName', 'Vorname', textInput('firstName', 'text', 'autocomplete="given-name" maxlength="100" required'))}
       ${field('lastName', 'Name', textInput('lastName', 'text', 'autocomplete="family-name" maxlength="100" required'))}
@@ -264,7 +378,7 @@ function channelCard(channel) {
 
 function viewVerify() {
   return `${progress()}
-  <p class="kicker">Schritt 3 · Bestätigen</p>
+  <p class="kicker">Schritt ${stepNo('verify')} · Bestätigen</p>
   <h2>Fast geschafft, ${esc(state.form.firstName)}!</h2>
   <p class="lead">${requiredChannels().length > 1
     ? 'Wir haben dir Codes geschickt. Gib sie hier ein, um deine Kontaktdaten zu bestätigen.'
@@ -297,6 +411,7 @@ function viewDone() {
 // CSP erlaubt keine Inline-Styles im Markup; dynamische Breiten werden per CSSOM gesetzt.
 function applyDynamicStyles(root = $app) {
   for (const el of root.querySelectorAll('[data-pct]')) el.style.width = `${el.dataset.pct}%`;
+  for (const el of root.querySelectorAll('[data-rot]')) el.style.transform = `rotate(${state.wheelRotation || 0}deg)`;
 }
 
 function focusKey(el) {
@@ -306,7 +421,7 @@ function focusKey(el) {
 }
 
 function render() {
-  const views = { start: viewStart, budget: viewBudget, contact: viewContact, verify: viewVerify, done: viewDone };
+  const views = { start: viewStart, budget: viewBudget, spin: viewSpin, contact: viewContact, verify: viewVerify, done: viewDone };
   const key = focusKey(document.activeElement);
   $app.innerHTML = (views[state.step] || viewStart)();
   applyDynamicStyles();
@@ -350,7 +465,8 @@ function setAmount(slug, value, { partial = false } = {}) {
 function readContactForm(form) {
   const fd = new FormData(form);
   state.form = {
-    companySlug: String(fd.get('companySlug') || ''),
+    // Ohne Auswahlfeld (virtuelles Glücksrad) bleibt das Ergebnis des Rads erhalten.
+    companySlug: fd.has('companySlug') ? String(fd.get('companySlug') || '') : state.form.companySlug,
     firstName: String(fd.get('firstName') || '').trim(),
     lastName: String(fd.get('lastName') || '').trim(),
     phone: String(fd.get('phone') || '').trim(),
@@ -401,6 +517,13 @@ async function submitContact(form) {
     if (err.status === 404 || err.error === 'completed') state.lead = null; // Token ungültig → neu anlegen
     state.fieldErrors = err.fieldErrors || {};
     state.error = err.fieldErrors ? '' : err.message;
+    if (virtual() && state.fieldErrors.companySlug) {
+      // Gewonnenes Feld nicht (mehr) gültig – das Rad muss neu gedreht werden.
+      state.form.companySlug = '';
+      state.wheelRotation = 0;
+      state.fieldErrors = {};
+      return go('spin');
+    }
     render();
   }
 }
@@ -476,11 +599,21 @@ $app.addEventListener('click', (e) => {
     case 'reset-budget': state.allocations = {}; return render();
     case 'budget-next':
       if (!budgetValid()) { state.error = 'Bitte verteile das komplette Budget.'; return render(); }
-      return go('contact');
-    case 'back-budget': readContactForm($app.querySelector('form')); return go('budget');
+      return go(virtual() ? 'spin' : 'contact');
+    case 'spin': return startSpin();
+    case 'spin-next': return go('contact');
+    case 'back-budget-spin': return go('budget');
+    case 'back-budget': readContactForm($app.querySelector('form')); return go(virtual() ? 'spin' : 'budget');
     case 'back-contact': return go('contact');
     case 'resend': return sendCode(channel);
     case 'reset': return reset();
+  }
+});
+
+$app.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.wheel-stage[data-action="spin"]')) {
+    e.preventDefault();
+    startSpin();
   }
 });
 
@@ -537,6 +670,8 @@ setInterval(() => {
     document.title = event.title.replace(/\.$/, '');
     restore();
     if (state.step === 'verify' && !state.lead) state.step = 'contact';
+    state.spinning = false;
+    state.step = normalizeStep(state.step);
     render();
   } catch (err) {
     $app.innerHTML = `<div class="alert">Die App konnte nicht geladen werden. ${esc(err.message)}</div>
