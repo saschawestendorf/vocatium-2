@@ -42,7 +42,10 @@ const eventSchema = z
       .min(1)
       .max(10),
     wheel: z.object({ title: text, intro: z.string().default(''), question: text }),
-    companies: z.array(z.object({ slug, name: text })).min(1).max(20),
+    companies: z
+      .array(z.object({ slug, name: text, wheelLabel: z.string().trim().default('') })) // wheelLabel: Kurzname für das virtuelle Rad
+      .min(1)
+      .max(20),
     consentText: text,
     kiosk: z
       .object({
@@ -133,7 +136,7 @@ export async function syncEvent(pool, ev) {
 }
 
 // Öffentliche Sicht auf das Event für das Frontend (keine internen IDs).
-export function publicEvent(ev, { verify }) {
+export function publicEvent(ev, { verify, virtualWheel = false }) {
   return {
     slug: ev.slug,
     organizer: ev.organizer,
@@ -149,6 +152,7 @@ export function publicEvent(ev, { verify }) {
     companies: ev.companies,
     consentText: ev.consentText,
     kiosk: ev.kiosk,
+    virtualWheel,
     verify: { email: verify.email, phone: verify.phone },
   };
 }

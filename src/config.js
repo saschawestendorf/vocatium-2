@@ -47,6 +47,8 @@ const schema = z
     // Verifizierung
     VERIFY_EMAIL: bool,
     VERIFY_PHONE: bool,
+    // Virtuelles Glücksrad in der App (Standard: aus = physisches Glücksrad am Stand)
+    VIRTUAL_WHEEL: bool,
     CODE_TTL_MINUTES: z.coerce.number().int().min(1).max(60).default(10),
     CODE_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
     CODE_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().min(0).max(600).default(30),
@@ -109,6 +111,7 @@ export function loadConfig(env = process.env) {
       },
       seven: { apiKey: e.SEVEN_API_KEY },
     },
+    virtualWheel: e.VIRTUAL_WHEEL ?? false,
     verify: {
       email: e.VERIFY_EMAIL ?? true,
       // SMS-Verifizierung standardmäßig aus (kein SMS-Versand vorgesehen).

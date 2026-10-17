@@ -122,6 +122,38 @@ a { color: var(--gold); }
 .step:disabled { opacity: .35; cursor: not-allowed; }
 input[type=range] { flex: 1; min-width: 0; accent-color: var(--gold); height: 32px; }
 
+/* Virtuelles Glücksrad */
+.wheel-stage { position: relative; width: min(100%, 440px); aspect-ratio: 1; margin: 26px auto 18px; border-radius: 50%; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.wheel-stage::before { content: ''; position: absolute; inset: -9%; z-index: 0; border-radius: 50%; background: radial-gradient(circle, rgba(255, 183, 3, .55), rgba(230, 57, 70, .25) 45%, transparent 68%); animation: halo 2.4s ease-in-out infinite; }
+.wheel-stage.done { cursor: default; }
+.wheel-stage:focus-visible { outline: 3px solid var(--gold); outline-offset: 8px; }
+.wheel-rotor, .wheel-deco { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+.wheel-rotor { transform-origin: 50% 50%; will-change: transform; border-radius: 50%; }
+.wheel-rotor svg, .wheel-deco { display: block; width: 100%; height: 100%; overflow: visible; }
+.wheel-deco { z-index: 2; pointer-events: none; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .45)); }
+.bulb { fill: #fff3b0; filter: drop-shadow(0 0 3px #ffd54a); }
+.bulb.b0 { animation: bulb 1.1s steps(1) infinite; }
+.bulb.b1 { animation: bulb 1.1s steps(1) infinite reverse; }
+.wheel-stage.spinning .bulb { animation-duration: .22s; }
+.wheel-stage.done .bulb { animation: bulb-win .5s steps(1) infinite; }
+@keyframes bulb { 0%, 100% { fill: #fff3b0; opacity: 1; } 50% { fill: #b9791a; opacity: .45; } }
+@keyframes bulb-win { 0%, 100% { fill: #fff3b0; } 50% { fill: #ff8fa3; } }
+@keyframes halo { 0%, 100% { opacity: .55; transform: scale(.97); } 50% { opacity: 1; transform: scale(1.03); } }
+.spin-hint { margin: 0; text-align: center; color: var(--gold); font-weight: 700; letter-spacing: .04em; }
+.btn-spin { min-height: 64px; font-size: 20px; background: linear-gradient(135deg, #ffd54a, #e7a93c 55%, #fb5607); box-shadow: 0 6px 22px rgba(255, 183, 3, .4); animation: pulse 1.6s ease-in-out infinite; }
+.btn-spin svg { width: 24px; height: 24px; }
+.btn-spin:disabled { animation: none; }
+@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
+.win { margin: 8px 0 0; padding: 22px 20px; text-align: center; border: 2px solid var(--gold); border-radius: var(--radius); background: linear-gradient(160deg, rgba(255, 183, 3, .22), rgba(230, 57, 70, .16)); box-shadow: 0 0 34px rgba(255, 183, 3, .35); animation: pop .6s cubic-bezier(.2, 1.4, .4, 1) both; }
+.win .kicker { font-size: 15px; letter-spacing: .3em; }
+.win-name { font: 900 clamp(30px, 7vw, 46px)/1.08 var(--display); margin: 4px 0 8px; background: linear-gradient(90deg, #fff3b0, #ffb703, #fff3b0); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 3s linear infinite; }
+.win-text { margin: 0; color: var(--muted); font-size: 15px; }
+.win.compact { margin: 0 0 20px; padding: 14px 16px; animation: none; box-shadow: none; }
+.win.compact .win-name { font-size: 26px; margin: 0 0 4px; }
+@keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes shine { to { background-position: -200% 0; } }
+.confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 50; pointer-events: none; }
+
 /* Formulare */
 .field { display: grid; gap: 6px; margin-bottom: 18px; }
 .field label, .field .label { font-weight: 600; font-size: 15px; }
@@ -180,7 +212,7 @@ footer.site { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--n
   .shell { padding: 24px 16px 48px; }
   .btn-cta { padding: 0 20px; }
 }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 @media print {
   body { background: #fff; color: #000; }
   .topbar, .actions, .progress, footer.site { display: none; }
