@@ -9,7 +9,7 @@ Node.js (Fastify) · PostgreSQL · Resend (E-Mail) · Deploy auf Railway.
 |---|---|
 | 1 · Budget | 10.000 € frei auf bis zu 10 Projekte verteilen (Standard: 5). Regler, ±-Buttons, „Rest hierhin“. Ist das Budget aufgebraucht, werden die anderen Projekte beim Hochziehen proportional gekürzt. |
 | 2 · Glücksrad | Ergebnis des (manuell gedrehten) Glücksrads wählen (5 Betriebe), Vorname, Name, Telefon, E-Mail, Einwilligung. Mit `VIRTUAL_WHEEL=true` kommt davor eine Extra-Seite mit virtuellem Glücksrad (gewinnt immer, Ergebnis wird automatisch übernommen, Auswahlfeld entfällt). |
-| 3 · Bestätigen | Optional (standardmäßig aus): 6-stelliger Code per E-Mail (`VERIFY_EMAIL=true`) bzw. SMS (`VERIFY_PHONE=true`). Ohne Verifizierung wird direkt abgeschlossen. |
+| 3 · Bestätigen | 6-stelliger Code per E-Mail. Daten korrigierbar, Code erneut anforderbar. (SMS-Verifizierung vorbereitet, per `VERIFY_PHONE=true` aktivierbar.) |
 | 4 · Fertig | Diplom + Zusammenfassung am Bildschirm, Bestätigungs-E-Mail via Resend. Kiosk-Reset. |
 
 ## Konfiguration

@@ -6,7 +6,7 @@ test('Defaults für Entwicklung', () => {
   const c = loadConfig({ DATABASE_URL: 'postgres://x' });
   assert.equal(c.email.provider, 'console');
   assert.deepEqual(c.sms.allowedCountries, ['DE']);
-  assert.equal(c.verify.email, false);
+  assert.equal(c.verify.email, true);
   assert.equal(c.verify.phone, false);
 });
 

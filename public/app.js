@@ -47,9 +47,8 @@ const budgetValid = () => {
 };
 const buttonStep = () => event.budget.stepEuro * (total() / event.budget.stepEuro >= 50 ? 5 : 1);
 const virtual = () => event?.virtualWheel === true;
-const verifies = () => Boolean(event?.verify?.email || event?.verify?.phone);
-// Sichtbare Schritte (Fortschrittsbalken, Beschriftung) – „spin“ nur mit virtuellem Glücksrad, „verify“ nur mit aktiver Verifizierung.
-const flow = () => ['budget', virtual() && 'spin', 'contact', verifies() && 'verify', 'done'].filter(Boolean);
+// Sichtbare Schritte (Fortschrittsbalken, Beschriftung) – mit virtuellem Glücksrad kommt „spin“ dazu.
+const flow = () => (virtual() ? ['budget', 'spin', 'contact', 'verify', 'done'] : ['budget', 'contact', 'verify', 'done']);
 const stepNo = (step) => flow().indexOf(step) + 1;
 // Schutz vor ungültigen Zuständen (z. B. gespeicherter Schritt passt nicht zur aktuellen Konfiguration).
 function normalizeStep(step) {
