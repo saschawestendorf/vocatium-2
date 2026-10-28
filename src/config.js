@@ -47,6 +47,7 @@ const schema = z
     // Verifizierung
     VERIFY_EMAIL: bool,
     VERIFY_PHONE: bool,
+    VERIFY_ALLOW_VERBAL: bool,
     // Virtuelles Glücksrad in der App (Standard: aus = physisches Glücksrad am Stand)
     VIRTUAL_WHEEL: bool,
     CODE_TTL_MINUTES: z.coerce.number().int().min(1).max(60).default(10),
@@ -116,6 +117,8 @@ export function loadConfig(env = process.env) {
       email: e.VERIFY_EMAIL ?? true,
       // SMS-Verifizierung standardmäßig aus (kein SMS-Versand vorgesehen).
       phone: e.VERIFY_PHONE ?? false,
+      // Fallback am Stand: Code nicht angekommen → Häkchen „Genehmigung mündlich erteilt“.
+      allowVerbal: e.VERIFY_ALLOW_VERBAL ?? true,
       ttlMinutes: e.CODE_TTL_MINUTES,
       maxAttempts: e.CODE_MAX_ATTEMPTS,
       resendCooldownSeconds: e.CODE_RESEND_COOLDOWN_SECONDS,

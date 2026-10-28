@@ -14,6 +14,10 @@ export class AppError extends Error {
 }
 
 const CHANNELS = ['email', 'sms'];
+const columnsOf = (channel) =>
+  channel === 'email'
+    ? { verifiedCol: 'email_verified_at', methodCol: 'email_verification_method' }
+    : { verifiedCol: 'phone_verified_at', methodCol: 'phone_verification_method' };
 
 export function createLeadService({ pool, config, event, ids, emailProvider, smsProvider, log }) {
   const secret = config.appSecret;
@@ -187,7 +191,7 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
 
     const lead = await withTransaction(pool, async (db) => {
       const lead = await authorize(db, leadId, token, { lock: true });
-      const verifiedCol = channel === 'email' ? 'email_verified_at' : 'phone_verified_at';
+      const { verifiedCol, methodCol } = columnsOf(channel);
       if (lead[verifiedCol]) return lead; // idempotent
       const target = channel === 'email' ? lead.email : lead.phone_e164;
 
@@ -209,7 +213,7 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
       }
       await db.query('UPDATE verifications SET consumed_at = now() WHERE id = $1', [ver.id]);
       const { rows: [updated] } = await db.query(
-        `UPDATE leads SET ${verifiedCol} = now(), updated_at = now() WHERE id = $1 RETURNING *`,
+        `UPDATE leads SET ${verifiedCol} = now(), ${methodCol} = 'code', updated_at = now() WHERE id = $1 RETURNING *`,
         [lead.id],
       );
       return updated;
@@ -218,6 +222,34 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
     if (lead.wrongCode) {
       throw new AppError(422, 'wrong_code', lead.left > 0 ? `Code falsch. Noch ${lead.left} Versuch(e).` : 'Code falsch. Bitte fordere einen neuen Code an.');
     }
+    const final = isFullyVerified(lead) && lead.status !== 'completed' ? await complete(lead.id) : lead;
+    return stateOf(final);
+  }
+
+  // Fallback: Code wurde gesendet, kam aber nicht an → Standteam bestätigt per Häkchen „Genehmigung mündlich erteilt“.
+  async function confirmVerbal(leadId, token, channel, confirmed) {
+    if (!CHANNELS.includes(channel)) throw new AppError(400, 'bad_channel', 'Unbekannter Kanal.');
+    if (!v.allowVerbal) throw new AppError(403, 'verbal_disabled', 'Mündliche Bestätigung ist nicht aktiviert.');
+    if (!required[channel]) throw new AppError(400, 'not_required', 'Diese Verifizierung ist nicht aktiv.');
+    if (confirmed !== true) throw new AppError(422, 'not_confirmed', 'Bitte bestätige, dass die Genehmigung mündlich erteilt wurde.');
+
+    const lead = await withTransaction(pool, async (db) => {
+      const lead = await authorize(db, leadId, token, { lock: true });
+      const { verifiedCol, methodCol } = columnsOf(channel);
+      if (lead[verifiedCol]) return lead; // idempotent
+      // Offene Codes entwerten; auch nutzbar, wenn der Versand selbst fehlgeschlagen ist.
+      await db.query('UPDATE verifications SET consumed_at = now() WHERE lead_id = $1 AND channel = $2 AND consumed_at IS NULL', [
+        lead.id,
+        channel,
+      ]);
+      const { rows: [updated] } = await db.query(
+        `UPDATE leads SET ${verifiedCol} = now(), ${methodCol} = 'verbal', updated_at = now() WHERE id = $1 RETURNING *`,
+        [lead.id],
+      );
+      return updated;
+    });
+
+    log.info({ leadId: lead.id, channel }, 'Verifizierung mündlich bestätigt');
     const final = isFullyVerified(lead) && lead.status !== 'completed' ? await complete(lead.id) : lead;
     return stateOf(final);
   }
@@ -255,7 +287,7 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
     }
   }
 
-  return { submit, status, sendCode, verifyCode };
+  return { submit, status, sendCode, verifyCode, confirmVerbal };
 }
 
 // Nutzerfreundliche Meldung: Nur bei vom Anbieter abgelehnter Empfängeradresse (422/400)

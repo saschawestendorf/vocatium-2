@@ -35,4 +35,8 @@ export default async function apiRoutes(app, { leads, publicEventData }) {
   app.post('/leads/:id/verifications/:channel/check', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (req) =>
     leads.verifyCode(req.params.id, bearer(req), req.params.channel, req.body?.code),
   );
+
+  app.post('/leads/:id/verifications/:channel/verbal', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (req) =>
+    leads.confirmVerbal(req.params.id, bearer(req), req.params.channel, req.body?.confirmed),
+  );
 }

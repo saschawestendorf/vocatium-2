@@ -218,3 +218,5 @@ footer.site { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--n
   .topbar, .actions, .progress, footer.site { display: none; }
   .diploma { border-color: #000; }
 }
+.verbal { display: grid; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--navy-line); }
+.verbal .btn { justify-self: start; }
