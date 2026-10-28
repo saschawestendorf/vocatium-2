@@ -8,6 +8,7 @@ test('Defaults für Entwicklung', () => {
   assert.deepEqual(c.sms.allowedCountries, ['DE']);
   assert.equal(c.verify.email, true);
   assert.equal(c.verify.phone, false);
+  assert.equal(c.verify.allowVerbal, true);
 });
 
 test('Produktion verlangt Secrets und Provider-Keys', () => {

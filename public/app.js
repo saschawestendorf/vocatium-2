@@ -373,6 +373,17 @@ function channelCard(channel) {
     ${c.error ? `<p class="error" role="alert">${esc(c.error)}</p>` : ''}
     <div><button class="btn-link small" data-action="resend" data-channel="${channel}" data-cooldown="${channel}" ${wait > 0 || c.sending ? 'disabled' : ''}>
       ${c.sending ? 'Wird gesendet …' : wait > 0 ? `Code erneut senden (${wait} s)` : 'Code erneut senden'}</button></div>
+    ${verbalBlock(channel, c)}
+  </div>`;
+}
+
+// Fallback, wenn der Code nicht ankommt: Standteam setzt Häkchen „Genehmigung mündlich erteilt“.
+function verbalBlock(channel, c) {
+  if (!event.verify?.allowVerbal || !(c.sent || c.error) || c.sending) return '';
+  return `<div class="verbal">
+    <label class="check"><input type="checkbox" name="verbal" ${c.verbal ? 'checked' : ''}>
+      <span>Code nicht angekommen – Genehmigung mündlich erteilt</span></label>
+    <button class="btn btn-ghost" data-action="verbal" data-channel="${channel}" ${!c.verbal || c.busy ? 'disabled' : ''}>Ohne Code bestätigen</button>
   </div>`;
 }
 
@@ -575,6 +586,24 @@ async function checkCode(channel, code) {
   }
 }
 
+async function confirmVerbal(channel) {
+  const c = (state.channels[channel] ||= {});
+  if (!c.verbal) return;
+  c.busy = true;
+  c.error = '';
+  render();
+  try {
+    const data = await api('POST', `/api/leads/${encodeURIComponent(state.lead.leadId)}/verifications/${channel}/verbal`, { confirmed: true });
+    state.lead = { ...state.lead, ...data };
+    if (data.status === 'completed') return go('done');
+  } catch (err) {
+    c.error = err.message;
+  } finally {
+    c.busy = false;
+  }
+  if (state.step === 'verify') render();
+}
+
 async function refreshStatus() {
   try {
     const data = await api('GET', `/api/leads/${encodeURIComponent(state.lead.leadId)}`);
@@ -606,6 +635,7 @@ $app.addEventListener('click', (e) => {
     case 'back-budget': readContactForm($app.querySelector('form')); return go(virtual() ? 'spin' : 'budget');
     case 'back-contact': return go('contact');
     case 'resend': return sendCode(channel);
+    case 'verbal': return confirmVerbal(channel);
     case 'reset': return reset();
   }
 });
@@ -629,6 +659,11 @@ $app.addEventListener('input', (e) => {
 });
 
 $app.addEventListener('change', (e) => {
+  if (e.target.matches('input[name=verbal]')) {
+    const channel = e.target.closest('[data-channel]').dataset.channel;
+    (state.channels[channel] ||= {}).verbal = e.target.checked;
+    return render();
+  }
   if (e.target.matches('input[type=range]')) {
     dragBase = null;
     render(); // Buttons/Rest-Links aktualisieren

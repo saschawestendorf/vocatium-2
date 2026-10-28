@@ -23,6 +23,8 @@ const DATE_FMT = new Intl.DateTimeFormat('de-DE', {
 });
 const formatDate = (d) => (d ? DATE_FMT.format(new Date(d)).replace(',', '') : '');
 
+const methodLabel = (m) => ({ code: 'Code', verbal: 'mündlich' })[m] ?? '';
+
 export default async function adminRoutes(app, { pool, config, ids }) {
   app.addHook('onRequest', async (req, reply) => {
     if (!config.admin.password) {
@@ -54,14 +56,15 @@ export default async function adminRoutes(app, { pool, config, ids }) {
       [ids.eventId, onlyCompleted],
     );
     const header = [
-      'Lead-ID', 'Status', 'Erstellt', 'Abgeschlossen', 'Vorname', 'Name', 'E-Mail', 'E-Mail verifiziert',
-      'Telefon', 'Telefon verifiziert', 'Glücksrad-Betrieb', ...projects.map((p) => `${p.title} (€)`),
+      'Lead-ID', 'Status', 'Erstellt', 'Abgeschlossen', 'Vorname', 'Name', 'E-Mail', 'E-Mail verifiziert', 'E-Mail Verifizierungsart',
+      'Telefon', 'Telefon verifiziert', 'Telefon Verifizierungsart', 'Glücksrad-Betrieb', ...projects.map((p) => `${p.title} (€)`),
       'Bestätigung versendet', 'Einwilligung',
     ];
     const lines = rows.map((r) =>
       [
         r.id, r.status, formatDate(r.created_at), formatDate(r.completed_at), r.first_name, r.last_name, r.email,
-        formatDate(r.email_verified_at), formatPhone(r.phone_e164), formatDate(r.phone_verified_at), r.company_name,
+        formatDate(r.email_verified_at), methodLabel(r.email_verification_method),
+        formatPhone(r.phone_e164), formatDate(r.phone_verified_at), methodLabel(r.phone_verification_method), r.company_name,
         ...projects.map((p) => r.alloc[p.id] ?? 0), formatDate(r.confirmation_sent_at), formatDate(r.consent_at),
       ].map(csvCell).join(';'),
     );
