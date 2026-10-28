@@ -113,7 +113,8 @@ export function loadConfig(env = process.env) {
     },
     virtualWheel: e.VIRTUAL_WHEEL ?? false,
     verify: {
-      email: e.VERIFY_EMAIL ?? true,
+      // E-Mail-Verifizierung standardmäßig aus; per VERIFY_EMAIL=true aktivierbar.
+      email: e.VERIFY_EMAIL ?? false,
       // SMS-Verifizierung standardmäßig aus (kein SMS-Versand vorgesehen).
       phone: e.VERIFY_PHONE ?? false,
       ttlMinutes: e.CODE_TTL_MINUTES,
