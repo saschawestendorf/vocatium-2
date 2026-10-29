@@ -12,6 +12,7 @@ import { createSessionService } from './sessions.js';
 import { createSmsProvider } from './providers/sms.js';
 import apiRoutes from './routes/api.js';
 import adminRoutes from './routes/admin.js';
+import exportRoutes from './routes/export.js';
 
 const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public');
 
@@ -30,7 +31,17 @@ export async function buildApp({ config, pool, event, ids }) {
     bodyLimit: 32 * 1024,
     logger: {
       level: config.isProd ? 'info' : 'debug',
-      redact: ['req.headers.authorization', 'req.headers.cookie'],
+      redact: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-export-key"]'],
+      serializers: {
+        // Beim Export-Endpunkt nie die Query loggen – falls jemand den Schlüssel fälschlich in die URL schreibt.
+        req: (req) => ({
+          method: req.method,
+          url: req.url?.startsWith('/export') ? req.url.split('?')[0] : req.url,
+          host: req.host,
+          remoteAddress: req.ip,
+          remotePort: req.socket?.remotePort,
+        }),
+      },
     },
   });
 
@@ -72,6 +83,7 @@ export async function buildApp({ config, pool, event, ids }) {
 
   await app.register(apiRoutes, { prefix: '/api', leads, sessions, publicEventData: publicEvent(event, config) });
   await app.register(adminRoutes, { prefix: '/admin', pool, config, ids });
+  await app.register(exportRoutes, { prefix: '/export', pool, config });
   await app.register(fastifyStatic, {
     root: PUBLIC_DIR,
     // @fastify/static ≥ 10 übergibt hier das Fastify-Reply-Objekt.
@@ -96,9 +108,12 @@ async function main() {
   const app = await buildApp({ config, pool, event, ids });
 
   app.log.info(
-    { event: event.slug, sms: config.sms.provider, verify: config.verify },
+    { event: event.slug, sms: config.sms.provider, verify: config.verify, export: Boolean(config.export.apiKey) },
     'Konfiguration geladen',
   );
+  if (config.export.keyRejected) {
+    app.log.warn('EXPORT_API_KEY ist kürzer als 32 Zeichen – Datenexport bleibt deaktiviert.');
+  }
   if (config.isProd && config.verify.phone && config.sms.provider === 'console') {
     app.log.warn('Produktion mit SMS-Console-Provider: Codes werden nur geloggt, nicht versendet!');
   }

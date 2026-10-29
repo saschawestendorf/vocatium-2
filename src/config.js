@@ -1,5 +1,6 @@
 // Zentrale, validierte Laufzeitkonfiguration aus Umgebungsvariablen.
 import { z } from 'zod';
+import { EXPORT_MIN_KEY_LENGTH } from './export.js';
 
 const bool = z
   .string()
@@ -25,6 +26,8 @@ const schema = z
     APP_SECRET: z.string().optional(),
     ADMIN_USER: z.string().default('admin'),
     ADMIN_PASSWORD: z.string().optional(),
+    // Schlüssel für den Datenexport GET /export/data.json (mind. 32 Zeichen). Leer = Endpunkt aus.
+    EXPORT_API_KEY: z.string().optional(),
 
     // SMS
     SMS_PROVIDER: z.enum(['twilio', 'seven', 'console']).default('console'),
@@ -70,6 +73,9 @@ export function loadConfig(env = process.env) {
     throw new Error(`Ungültige Konfiguration:\n${lines.join('\n')}`);
   }
   const e = parsed.data;
+  // Optionales Feature: Ein zu kurzer Schlüssel deaktiviert nur den Export, statt den Start zu verhindern.
+  const exportKey = e.EXPORT_API_KEY?.trim() || undefined;
+  const exportKeyValid = Boolean(exportKey && exportKey.length >= EXPORT_MIN_KEY_LENGTH);
   return {
     env: e.NODE_ENV,
     isProd: e.NODE_ENV === 'production',
@@ -81,6 +87,7 @@ export function loadConfig(env = process.env) {
     eventConfigPath: e.EVENT_CONFIG_PATH,
     appSecret: e.APP_SECRET || 'dev-secret-nicht-in-produktion-verwenden',
     admin: { user: e.ADMIN_USER, password: e.ADMIN_PASSWORD },
+    export: { apiKey: exportKeyValid ? exportKey : undefined, keyRejected: Boolean(exportKey) && !exportKeyValid },
     sms: {
       provider: e.SMS_PROVIDER,
       sender: e.SMS_SENDER,
