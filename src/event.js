@@ -153,6 +153,6 @@ export function publicEvent(ev, { verify, virtualWheel = false }) {
     consentText: ev.consentText,
     kiosk: ev.kiosk,
     virtualWheel,
-    verify: { email: verify.email, phone: verify.phone },
+    verify: { phone: verify.phone },
   };
 }

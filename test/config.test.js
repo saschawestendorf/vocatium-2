@@ -4,16 +4,14 @@ import { loadConfig } from '../src/config.js';
 
 test('Defaults für Entwicklung', () => {
   const c = loadConfig({ DATABASE_URL: 'postgres://x' });
-  assert.equal(c.email.provider, 'console');
   assert.deepEqual(c.sms.allowedCountries, ['DE']);
-  assert.equal(c.verify.email, true);
   assert.equal(c.verify.phone, false);
 });
 
 test('Produktion verlangt Secrets und Provider-Keys', () => {
   assert.throws(
-    () => loadConfig({ DATABASE_URL: 'postgres://x', NODE_ENV: 'production', EMAIL_PROVIDER: 'resend', SMS_PROVIDER: 'twilio' }),
-    (err) => ['APP_SECRET', 'ADMIN_PASSWORD', 'RESEND_API_KEY', 'TWILIO_ACCOUNT_SID', 'TWILIO_FROM'].every((k) => err.message.includes(k)),
+    () => loadConfig({ DATABASE_URL: 'postgres://x', NODE_ENV: 'production', SMS_PROVIDER: 'twilio' }),
+    (err) => ['APP_SECRET', 'ADMIN_PASSWORD', 'TWILIO_ACCOUNT_SID', 'TWILIO_FROM'].every((k) => err.message.includes(k)),
   );
 });
 
@@ -23,11 +21,10 @@ test('Boolesche und Listen-Variablen', () => {
   assert.deepEqual(c.sms.allowedCountries, ['DE', 'AT', 'CH']);
 });
 
-test('Resend wird automatisch aktiv, sobald RESEND_API_KEY gesetzt ist', () => {
-  const c = loadConfig({ DATABASE_URL: 'postgres://x', RESEND_API_KEY: 're_x', EMAIL_FROM: 'A <a@b.de>' });
-  assert.equal(c.email.provider, 'resend');
-  assert.throws(() => loadConfig({ DATABASE_URL: 'postgres://x', RESEND_API_KEY: 're_x' }), /EMAIL_FROM/);
-  assert.equal(loadConfig({ DATABASE_URL: 'postgres://x', RESEND_API_KEY: 're_x', EMAIL_PROVIDER: 'console' }).email.provider, 'console');
+test('Alte E-Mail-Variablen (Resend) werden ignoriert und brechen den Start nicht ab', () => {
+  const c = loadConfig({ DATABASE_URL: 'postgres://x', EMAIL_PROVIDER: 'resend', RESEND_API_KEY: 're_x', VERIFY_EMAIL: 'true' });
+  assert.equal(c.email, undefined);
+  assert.equal(c.verify.email, undefined);
 });
 
 test('Virtuelles Glücksrad ist standardmäßig aus und per VIRTUAL_WHEEL schaltbar', () => {

@@ -1,7 +1,7 @@
 // Frontend „Ein Tag Chef sein.“ – Vanilla JS, ohne Build-Schritt.
 import { rebalance } from './budget.js';
 import { wheelMarkup, spinTarget, normalizeRotation } from './wheel.js';
-// Ablauf: start → budget → [spin, nur mit virtuellem Glücksrad] → contact → verify → done. Kiosk-tauglich (Auto-Reset bei Inaktivität).
+// Ablauf: start → budget → [spin, nur mit virtuellem Glücksrad] → contact → [verify, nur mit SMS-Verifizierung] → done. Kiosk-tauglich (Auto-Reset bei Inaktivität).
 
 const $app = document.getElementById('app');
 const STORAGE_KEY = 'chef-lead-state-v1';
@@ -30,7 +30,7 @@ function freshState() {
     error: '',
     wheelRotation: 0, // Endstellung des virtuellen Glücksrads (Grad)
     lead: null, // { leadId, token, status, email, phone, verification }
-    channels: {}, // { email|sms: { target, cooldownUntil, error, info } }
+    channels: {}, // { sms: { target, cooldownUntil, error, info } }
     busy: false,
   };
 }
@@ -47,16 +47,18 @@ const budgetValid = () => {
 };
 const buttonStep = () => event.budget.stepEuro * (total() / event.budget.stepEuro >= 50 ? 5 : 1);
 const virtual = () => event?.virtualWheel === true;
-// Sichtbare Schritte (Fortschrittsbalken, Beschriftung) – mit virtuellem Glücksrad kommt „spin“ dazu.
-const flow = () => (virtual() ? ['budget', 'spin', 'contact', 'verify', 'done'] : ['budget', 'contact', 'verify', 'done']);
+const verifyPhone = () => event?.verify?.phone === true;
+// Sichtbare Schritte (Fortschrittsbalken, Beschriftung) – „spin“ nur mit virtuellem Glücksrad, „verify“ nur mit SMS-Verifizierung.
+const flow = () => ['budget', virtual() && 'spin', 'contact', verifyPhone() && 'verify', 'done'].filter(Boolean);
 const stepNo = (step) => flow().indexOf(step) + 1;
 // Schutz vor ungültigen Zuständen (z. B. gespeicherter Schritt passt nicht zur aktuellen Konfiguration).
 function normalizeStep(step) {
   if (step === 'spin' && !virtual()) return 'contact';
   if (step === 'contact' && virtual() && !state.form.companySlug) return 'spin';
+  if (step === 'verify' && !requiredChannels().length) return 'contact';
   return step;
 }
-const requiredChannels = () => ['email', 'sms'].filter((c) => state.lead?.verification?.[c]?.required);
+const requiredChannels = () => ['sms'].filter((c) => state.lead?.verification?.[c]?.required);
 
 function save() {
   try {
@@ -339,7 +341,7 @@ function viewContact() {
       ${field('lastName', 'Name', textInput('lastName', 'text', 'autocomplete="family-name" maxlength="100" required'))}
     </div>
     ${field('phone', event.verify.phone ? 'Handynummer' : 'Telefonnummer', textInput('phone', 'tel', 'autocomplete="tel" inputmode="tel" placeholder="0151 23456789" maxlength="40" required'), { hint: event.verify.phone ? 'Du bekommst einen Bestätigungscode per SMS.' : '' })}
-    ${field('email', 'E-Mail', textInput('email', 'email', 'autocomplete="email" inputmode="email" placeholder="name@beispiel.de" maxlength="254" required'), { hint: 'Du bekommst einen Bestätigungscode per E-Mail.' })}
+    ${field('email', 'E-Mail', textInput('email', 'email', 'autocomplete="email" inputmode="email" placeholder="name@beispiel.de" maxlength="254" required'))}
     <div class="field ${state.fieldErrors.consent ? 'invalid' : ''}">
       <label class="check"><input type="checkbox" name="consent" ${f.consent ? 'checked' : ''}><span>${esc(event.consentText)}${privacy}</span></label>
       ${state.fieldErrors.consent ? `<p class="error">${esc(state.fieldErrors.consent)}</p>` : ''}
@@ -356,8 +358,8 @@ function viewContact() {
 function channelCard(channel) {
   const v = state.lead.verification[channel];
   const c = state.channels[channel] || {};
-  const label = channel === 'email' ? 'E-Mail' : 'SMS';
-  const target = c.target || (channel === 'email' ? state.lead.email : state.lead.phone);
+  const label = 'SMS';
+  const target = c.target || state.lead.phone;
   if (v.verified) {
     return `<div class="card"><h3>${label}</h3><span class="ok">${ICONS.check} ${esc(target)} bestätigt</span></div>`;
   }
@@ -380,9 +382,7 @@ function viewVerify() {
   return `${progress()}
   <p class="kicker">Schritt ${stepNo('verify')} · Bestätigen</p>
   <h2>Fast geschafft, ${esc(state.form.firstName)}!</h2>
-  <p class="lead">${requiredChannels().length > 1
-    ? 'Wir haben dir Codes geschickt. Gib sie hier ein, um deine Kontaktdaten zu bestätigen.'
-    : `Wir haben dir einen Code geschickt. Gib ihn hier ein, um deine ${requiredChannels()[0] === 'sms' ? 'Handynummer' : 'E-Mail-Adresse'} zu bestätigen.`}</p>
+  <p class="lead">Wir haben dir einen Code per SMS geschickt. Gib ihn hier ein, um deine Handynummer zu bestätigen.</p>
   <div class="verify">${requiredChannels().map(channelCard).join('')}</div>
   ${alert()}
   <div class="actions"><button class="btn btn-ghost" data-action="back-contact">Daten korrigieren</button></div>`;
@@ -397,7 +397,7 @@ function viewDone() {
   return `${progress()}
   <p class="kicker">Geschafft</p>
   <h1 class="display">Danke, ${esc(state.form.firstName)}!</h1>
-  <p class="lead">Du hast heute die Führung übernommen. Eine Bestätigung ist unterwegs an ${esc(state.lead?.email || state.form.email)}.</p>
+  <p class="lead">Du hast heute die Führung übernommen.</p>
   <div class="diploma">
     <p class="kicker">Diplom</p>
     <div class="name">${esc(`${state.form.firstName} ${state.form.lastName}`)}</div>
@@ -503,11 +503,15 @@ async function submitContact(form) {
       : await api('POST', '/api/leads', payload);
     const prev = state.lead;
     state.lead = { ...data, token: data.token || prev?.token };
-    // Bei geänderter Adresse Kanalstatus zurücksetzen.
-    if (prev?.email !== data.email) delete state.channels.email;
+    // Bei geänderter Nummer Kanalstatus zurücksetzen.
     if (prev?.phone !== data.phone) delete state.channels.sms;
     state.busy = false;
     if (data.status === 'completed') return go('done');
+    if (!requiredChannels().length) {
+      // Nicht abgeschlossen, aber keine Verifizierung aktiv (sollte nicht vorkommen) – erneutes Absenden schließt ab.
+      state.error = 'Da ist etwas schiefgelaufen. Bitte versuche es erneut.';
+      return render();
+    }
     go('verify');
     for (const ch of requiredChannels()) {
       if (!state.lead.verification[ch].verified && !state.channels[ch]?.sent) sendCode(ch);

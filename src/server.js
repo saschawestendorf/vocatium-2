@@ -8,7 +8,6 @@ import { loadConfig } from './config.js';
 import { createPool, migrate } from './db.js';
 import { loadEventConfig, publicEvent, syncEvent } from './event.js';
 import { AppError, createLeadService } from './leads.js';
-import { createEmailProvider } from './providers/email.js';
 import { createSmsProvider } from './providers/sms.js';
 import apiRoutes from './routes/api.js';
 import adminRoutes from './routes/admin.js';
@@ -34,10 +33,8 @@ export async function buildApp({ config, pool, event, ids }) {
     },
   });
 
-  const emailProvider = createEmailProvider(config, app.log);
-  emailProvider.check().catch(() => {}); // läuft im Hintergrund, blockiert den Start nicht
   const smsProvider = createSmsProvider(config, app.log);
-  const leads = createLeadService({ pool, config, event, ids, emailProvider, smsProvider, log: app.log });
+  const leads = createLeadService({ pool, config, event, ids, smsProvider, log: app.log });
 
   app.addHook('onSend', async (_req, reply) => {
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) reply.header(k, v);
@@ -97,11 +94,11 @@ async function main() {
   const app = await buildApp({ config, pool, event, ids });
 
   app.log.info(
-    { event: event.slug, email: config.email.provider, sms: config.sms.provider, verify: config.verify },
+    { event: event.slug, sms: config.sms.provider, verify: config.verify },
     'Konfiguration geladen',
   );
-  if (config.isProd && (config.email.provider === 'console' || config.sms.provider === 'console')) {
-    app.log.warn('Produktion mit Console-Provider: Codes werden nur geloggt, nicht versendet!');
+  if (config.isProd && config.verify.phone && config.sms.provider === 'console') {
+    app.log.warn('Produktion mit SMS-Console-Provider: Codes werden nur geloggt, nicht versendet!');
   }
 
   const shutdown = async (signal) => {
