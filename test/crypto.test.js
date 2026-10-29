@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { generateCode, generateToken, hmac, safeEqualHex } from '../src/crypto.js';
 import { maskTarget, sendFailureMessage } from '../src/leads.js';
-import { escapeHtml } from '../src/emails.js';
+import { escapeHtml } from '../src/format.js';
 
 test('generateCode liefert immer 6 Ziffern', () => {
   for (let i = 0; i < 500; i++) assert.match(generateCode(), /^\d{6}$/);
@@ -22,9 +22,8 @@ test('hmac/safeEqualHex', () => {
   assert.ok(!safeEqualHex(undefined, h));
 });
 
-test('maskTarget verbirgt Teile von E-Mail und Telefon', () => {
-  assert.equal(maskTarget('email', 'franz@example.com'), 'fr•••@example.com');
-  assert.equal(maskTarget('sms', '+4915123456789'), '+491•••••••789');
+test('maskTarget verbirgt Teile der Telefonnummer', () => {
+  assert.equal(maskTarget('+4915123456789'), '+491•••••••789');
 });
 
 test('escapeHtml', () => {
@@ -32,8 +31,8 @@ test('escapeHtml', () => {
 });
 
 test('sendFailureMessage unterscheidet Nutzer- und Konfigurationsfehler', () => {
-  assert.match(sendFailureMessage('email', { status: 422 }), /prüfe die Adresse/);
-  assert.match(sendFailureMessage('email', { status: 403 }), /Standteam/);
-  assert.match(sendFailureMessage('email', new Error('timeout')), /Standteam/);
-  assert.match(sendFailureMessage('email', { status: 429 }), /Minute/);
+  assert.match(sendFailureMessage({ status: 422 }), /prüfe die Nummer/);
+  assert.match(sendFailureMessage({ status: 403 }), /Standteam/);
+  assert.match(sendFailureMessage(new Error('timeout')), /Standteam/);
+  assert.match(sendFailureMessage({ status: 429 }), /Minute/);
 });

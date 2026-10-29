@@ -46,7 +46,7 @@ test('cleanText entfernt Steuerzeichen und normalisiert Leerraum', () => {
 
 test('normalizeEmail', () => {
   assert.equal(normalizeEmail(' Mail@Example.COM '), 'mail@example.com');
-  // Leerzeichen (z. B. durch Tablet-Autokorrektur) werden entfernt; Tippfehler fängt die Code-Verifizierung ab.
+  // Leerzeichen (z. B. durch Tablet-Autokorrektur) werden entfernt.
   assert.equal(normalizeEmail('name @gmail.com'), 'name@gmail.com');
   for (const bad of ['', 'x@', '@x.de', 'a@b', 'a@@b.de', null]) assert.equal(normalizeEmail(bad), null, String(bad));
 });

@@ -1,7 +1,7 @@
 // Geschützter Admin-Bereich: Live-Auswertung und CSV-Export (HTTP Basic Auth).
 import { timingSafeEqual } from 'node:crypto';
 import { parsePhoneNumberFromString } from 'libphonenumber-js/max';
-import { escapeHtml, formatEuro } from '../emails.js';
+import { escapeHtml, formatEuro } from '../format.js';
 
 const safeEqual = (a, b) => {
   const x = Buffer.from(String(a));
@@ -54,15 +54,15 @@ export default async function adminRoutes(app, { pool, config, ids }) {
       [ids.eventId, onlyCompleted],
     );
     const header = [
-      'Lead-ID', 'Status', 'Erstellt', 'Abgeschlossen', 'Vorname', 'Name', 'E-Mail', 'E-Mail verifiziert',
+      'Lead-ID', 'Status', 'Erstellt', 'Abgeschlossen', 'Vorname', 'Name', 'E-Mail',
       'Telefon', 'Telefon verifiziert', 'Glücksrad-Betrieb', ...projects.map((p) => `${p.title} (€)`),
-      'Bestätigung versendet', 'Einwilligung',
+      'Einwilligung',
     ];
     const lines = rows.map((r) =>
       [
         r.id, r.status, formatDate(r.created_at), formatDate(r.completed_at), r.first_name, r.last_name, r.email,
-        formatDate(r.email_verified_at), formatPhone(r.phone_e164), formatDate(r.phone_verified_at), r.company_name,
-        ...projects.map((p) => r.alloc[p.id] ?? 0), formatDate(r.confirmation_sent_at), formatDate(r.consent_at),
+        formatPhone(r.phone_e164), formatDate(r.phone_verified_at), r.company_name,
+        ...projects.map((p) => r.alloc[p.id] ?? 0), formatDate(r.consent_at),
       ].map(csvCell).join(';'),
     );
     const stamp = new Date().toISOString().slice(0, 10);

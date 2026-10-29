@@ -26,14 +26,6 @@ const schema = z
     ADMIN_USER: z.string().default('admin'),
     ADMIN_PASSWORD: z.string().optional(),
 
-    // E-Mail
-    // Ohne Angabe: "resend", sobald RESEND_API_KEY gesetzt ist, sonst "console".
-    EMAIL_PROVIDER: z.enum(['resend', 'console']).optional(),
-    RESEND_API_KEY: z.string().optional(),
-    // Absender, Domain muss in Resend verifiziert sein, z. B. "Ein Tag Chef sein <chef@pentalink.cloud>"
-    EMAIL_FROM: z.string().trim().optional(),
-    EMAIL_REPLY_TO: z.string().optional(),
-
     // SMS
     SMS_PROVIDER: z.enum(['twilio', 'seven', 'console']).default('console'),
     SMS_SENDER: z.string().default('Rotary'),
@@ -44,8 +36,7 @@ const schema = z
     TWILIO_MESSAGING_SERVICE_SID: z.string().optional(),
     SEVEN_API_KEY: z.string().optional(),
 
-    // Verifizierung
-    VERIFY_EMAIL: bool,
+    // Verifizierung (nur SMS, optional). E-Mail-Adressen werden nicht verifiziert, es werden keine E-Mails versendet.
     VERIFY_PHONE: bool,
     // Virtuelles Glücksrad in der App (Standard: aus = physisches Glücksrad am Stand)
     VIRTUAL_WHEEL: bool,
@@ -61,9 +52,6 @@ const schema = z
     };
     need('APP_SECRET', prod, 'APP_SECRET ist in Produktion Pflicht');
     need('ADMIN_PASSWORD', prod, 'ADMIN_PASSWORD ist in Produktion Pflicht');
-    const emailProvider = env.EMAIL_PROVIDER ?? (env.RESEND_API_KEY ? 'resend' : 'console');
-    need('RESEND_API_KEY', emailProvider === 'resend', 'RESEND_API_KEY fehlt');
-    need('EMAIL_FROM', emailProvider === 'resend', 'EMAIL_FROM fehlt (Absender mit in Resend verifizierter Domain)');
     need('TWILIO_ACCOUNT_SID', env.SMS_PROVIDER === 'twilio', 'TWILIO_ACCOUNT_SID fehlt');
     need('TWILIO_AUTH_TOKEN', env.SMS_PROVIDER === 'twilio', 'TWILIO_AUTH_TOKEN fehlt');
     if (env.SMS_PROVIDER === 'twilio' && !env.TWILIO_FROM && !env.TWILIO_MESSAGING_SERVICE_SID) {
@@ -93,12 +81,6 @@ export function loadConfig(env = process.env) {
     eventConfigPath: e.EVENT_CONFIG_PATH,
     appSecret: e.APP_SECRET || 'dev-secret-nicht-in-produktion-verwenden',
     admin: { user: e.ADMIN_USER, password: e.ADMIN_PASSWORD },
-    email: {
-      provider: e.EMAIL_PROVIDER ?? (e.RESEND_API_KEY ? 'resend' : 'console'),
-      resendApiKey: e.RESEND_API_KEY,
-      from: e.EMAIL_FROM || 'Ein Tag Chef sein <noreply@example.com>',
-      replyTo: e.EMAIL_REPLY_TO,
-    },
     sms: {
       provider: e.SMS_PROVIDER,
       sender: e.SMS_SENDER,
@@ -113,7 +95,6 @@ export function loadConfig(env = process.env) {
     },
     virtualWheel: e.VIRTUAL_WHEEL ?? false,
     verify: {
-      email: e.VERIFY_EMAIL ?? true,
       // SMS-Verifizierung standardmäßig aus (kein SMS-Versand vorgesehen).
       phone: e.VERIFY_PHONE ?? false,
       ttlMinutes: e.CODE_TTL_MINUTES,

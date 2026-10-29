@@ -1,7 +1,6 @@
-// Fachlogik: Leads anlegen/ändern, Codes versenden/prüfen, Abschluss inkl. Bestätigungs-E-Mail.
+// Fachlogik: Leads anlegen/ändern, optionale SMS-Codes versenden/prüfen, Abschluss.
 import { withTransaction } from './db.js';
 import { generateCode, generateToken, hmac, safeEqualHex } from './crypto.js';
-import { confirmationEmail, verificationEmail } from './emails.js';
 import { validateLead } from './validation.js';
 
 export class AppError extends Error {
@@ -13,12 +12,13 @@ export class AppError extends Error {
   }
 }
 
-const CHANNELS = ['email', 'sms'];
+// Einziger Verifizierungskanal (optional, per VERIFY_PHONE). E-Mail wird nicht verifiziert.
+const CHANNELS = ['sms'];
 
-export function createLeadService({ pool, config, event, ids, emailProvider, smsProvider, log }) {
+export function createLeadService({ pool, config, event, ids, smsProvider, log }) {
   const secret = config.appSecret;
   const v = config.verify;
-  const required = { email: v.email, sms: v.phone };
+  const required = { sms: v.phone };
   // Ohne SMS-Verifizierung genügt jede gültige Telefonnummer (auch Festnetz/Ausland).
   const phoneOptions = v.phone ? { allowedCountries: config.sms.allowedCountries, requireMobile: true } : {};
   const hashToken = (t) => hmac(secret, `token:${t}`);
@@ -31,14 +31,12 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
       email: lead.email,
       phone: lead.phone_e164,
       verification: {
-        email: { required: required.email, verified: Boolean(lead.email_verified_at) },
         sms: { required: required.sms, verified: Boolean(lead.phone_verified_at) },
       },
     };
   }
 
-  const isFullyVerified = (lead) =>
-    (!required.email || lead.email_verified_at) && (!required.sms || lead.phone_verified_at);
+  const isFullyVerified = (lead) => !required.sms || lead.phone_verified_at;
 
   // Lädt Lead und prüft das Zugriffstoken. Optional mit Zeilensperre innerhalb einer Transaktion.
   async function authorize(db, leadId, token, { lock = false } = {}) {
@@ -63,7 +61,7 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
     );
   }
 
-  // Anlegen oder – solange noch nicht abgeschlossen – Ändern eines Leads (z. B. Tippfehler in der E-Mail).
+  // Anlegen oder – solange noch nicht abgeschlossen – Ändern eines Leads (z. B. Tippfehler in der Nummer).
   async function submit(input, { leadId, token, userAgent } = {}) {
     const { data, fieldErrors } = validateLead(input, event, phoneOptions);
     if (fieldErrors) throw new AppError(422, 'validation', 'Bitte prüfe deine Eingaben.', { fieldErrors });
@@ -73,22 +71,19 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
       if (leadId && token) {
         const lead = await authorize(db, leadId, token, { lock: true });
         if (lead.status === 'completed') throw new AppError(409, 'completed', 'Dieser Eintrag ist bereits abgeschlossen.');
-        const emailChanged = lead.email !== data.email;
         const phoneChanged = lead.phone_e164 !== data.phoneE164;
         const { rows: [updated] } = await db.query(
           `UPDATE leads SET first_name = $2, last_name = $3, email = $4, phone_e164 = $5, company_id = $6,
-             email_verified_at = CASE WHEN $7 THEN NULL ELSE email_verified_at END,
-             phone_verified_at = CASE WHEN $8 THEN NULL ELSE phone_verified_at END,
-             consent_text = $9, consent_at = now(), updated_at = now()
+             phone_verified_at = CASE WHEN $7 THEN NULL ELSE phone_verified_at END,
+             consent_text = $8, consent_at = now(), updated_at = now()
            WHERE id = $1 RETURNING *`,
-          [lead.id, data.firstName, data.lastName, data.email, data.phoneE164, companyId, emailChanged, phoneChanged, event.consentText],
+          [lead.id, data.firstName, data.lastName, data.email, data.phoneE164, companyId, phoneChanged, event.consentText],
         );
-        // Alte Codes für geänderte Kanäle entwerten.
-        const invalidate = [emailChanged && 'email', phoneChanged && 'sms'].filter(Boolean);
-        if (invalidate.length) {
+        // Alte Codes bei geänderter Nummer entwerten.
+        if (phoneChanged) {
           await db.query(
-            'UPDATE verifications SET consumed_at = now() WHERE lead_id = $1 AND channel = ANY($2) AND consumed_at IS NULL',
-            [lead.id, invalidate],
+            "UPDATE verifications SET consumed_at = now() WHERE lead_id = $1 AND channel = 'sms' AND consumed_at IS NULL",
+            [lead.id],
           );
         }
         await writeAllocations(db, lead.id, data.allocations);
@@ -123,10 +118,8 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
     const prepared = await withTransaction(pool, async (db) => {
       const lead = await authorize(db, leadId, token, { lock: true });
       if (lead.status === 'completed') throw new AppError(409, 'completed', 'Bereits abgeschlossen.');
-      if (channel === 'email' ? lead.email_verified_at : lead.phone_verified_at) {
-        throw new AppError(409, 'already_verified', 'Bereits bestätigt.');
-      }
-      const target = channel === 'email' ? lead.email : lead.phone_e164;
+      if (lead.phone_verified_at) throw new AppError(409, 'already_verified', 'Bereits bestätigt.');
+      const target = lead.phone_e164;
 
       const { rows: [last] } = await db.query(
         `SELECT EXTRACT(EPOCH FROM (now() - created_at))::int AS age FROM verifications
@@ -162,22 +155,17 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
 
     // Versand außerhalb der Transaktion (kein DB-Lock während externer Aufrufe).
     try {
-      if (channel === 'email') {
-        const mail = verificationEmail(event, { firstName: prepared.lead.first_name, code: prepared.code, ttlMinutes: v.ttlMinutes });
-        await emailProvider.send({ to: prepared.target, ...mail });
-      } else {
-        await smsProvider.send({
-          to: prepared.target,
-          text: `${prepared.code} ist dein Code für „${event.title.replace(/\.$/, '')}“. Gültig ${v.ttlMinutes} Min.`,
-        });
-      }
+      await smsProvider.send({
+        to: prepared.target,
+        text: `${prepared.code} ist dein Code für „${event.title.replace(/\.$/, '')}“. Gültig ${v.ttlMinutes} Min.`,
+      });
     } catch (err) {
       log.error({ err: err.message, channel, leadId }, 'Code-Versand fehlgeschlagen');
       // Fehlgeschlagenen Versand nicht auf Cooldown/Limit anrechnen.
       await pool.query('DELETE FROM verifications WHERE id = $1', [prepared.verificationId]).catch(() => {});
-      throw new AppError(502, 'send_failed', sendFailureMessage(channel, err));
+      throw new AppError(502, 'send_failed', sendFailureMessage(err));
     }
-    return { sent: true, target: maskTarget(channel, prepared.target), cooldownSeconds: v.resendCooldownSeconds };
+    return { sent: true, target: maskTarget(prepared.target), cooldownSeconds: v.resendCooldownSeconds };
   }
 
   async function verifyCode(leadId, token, channel, rawCode) {
@@ -187,9 +175,8 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
 
     const lead = await withTransaction(pool, async (db) => {
       const lead = await authorize(db, leadId, token, { lock: true });
-      const verifiedCol = channel === 'email' ? 'email_verified_at' : 'phone_verified_at';
-      if (lead[verifiedCol]) return lead; // idempotent
-      const target = channel === 'email' ? lead.email : lead.phone_e164;
+      if (lead.phone_verified_at) return lead; // idempotent
+      const target = lead.phone_e164;
 
       const { rows: [ver] } = await db.query(
         `SELECT * FROM verifications WHERE lead_id = $1 AND channel = $2 AND consumed_at IS NULL
@@ -209,7 +196,7 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
       }
       await db.query('UPDATE verifications SET consumed_at = now() WHERE id = $1', [ver.id]);
       const { rows: [updated] } = await db.query(
-        `UPDATE leads SET ${verifiedCol} = now(), updated_at = now() WHERE id = $1 RETURNING *`,
+        'UPDATE leads SET phone_verified_at = now(), updated_at = now() WHERE id = $1 RETURNING *',
         [lead.id],
       );
       return updated;
@@ -222,57 +209,27 @@ export function createLeadService({ pool, config, event, ids, emailProvider, sms
     return stateOf(final);
   }
 
-  // Abschluss: Status setzen und Bestätigungs-E-Mail senden (idempotent).
+  // Abschluss: Status setzen (idempotent). Es wird keine E-Mail versendet.
   async function complete(leadId) {
     const { rows: [lead] } = await pool.query(
       `UPDATE leads SET status = 'completed', completed_at = COALESCE(completed_at, now()), updated_at = now()
        WHERE id = $1 RETURNING *`,
       [leadId],
     );
-    if (!lead.confirmation_sent_at) await sendConfirmation(lead);
     return lead;
-  }
-
-  async function sendConfirmation(lead) {
-    try {
-      const { rows } = await pool.query(
-        `SELECT p.title, a.amount_euro AS amount FROM lead_allocations a JOIN projects p ON p.id = a.project_id
-         WHERE a.lead_id = $1 ORDER BY p.sort_order`,
-        [lead.id],
-      );
-      const { rows: [company] } = await pool.query('SELECT name FROM companies WHERE id = $1', [lead.company_id]);
-      const mail = confirmationEmail(event, {
-        firstName: lead.first_name,
-        lastName: lead.last_name,
-        companyName: company?.name ?? '',
-        allocations: rows,
-      });
-      await emailProvider.send({ to: lead.email, ...mail, idempotencyKey: `confirmation-${lead.id}` });
-      await pool.query('UPDATE leads SET confirmation_sent_at = now() WHERE id = $1', [lead.id]);
-    } catch (err) {
-      // Lead bleibt gültig; fehlender Versand ist im Export sichtbar (confirmation_sent_at leer).
-      log.error({ err: err.message, leadId: lead.id }, 'Bestätigungs-E-Mail fehlgeschlagen');
-    }
   }
 
   return { submit, status, sendCode, verifyCode };
 }
 
-// Nutzerfreundliche Meldung: Nur bei vom Anbieter abgelehnter Empfängeradresse (422/400)
+// Nutzerfreundliche Meldung: Nur bei vom Anbieter abgelehnter Nummer (422/400)
 // liegt der Fehler beim Nutzer; Konfigurationsfehler (401/403) oder Ausfälle nicht.
-export function sendFailureMessage(channel, err) {
-  const what = channel === 'email' ? 'E-Mail' : 'SMS';
-  if (err?.status === 400 || err?.status === 422) {
-    return channel === 'email' ? 'Die E-Mail-Adresse wurde abgelehnt. Bitte prüfe die Adresse.' : 'Die Nummer wurde abgelehnt. Bitte prüfe die Nummer.';
-  }
-  if (err?.status === 429) return `Gerade werden sehr viele ${what}s verschickt. Bitte versuche es in einer Minute erneut.`;
-  return `Der ${what}-Versand ist gerade nicht möglich. Bitte sprich das Standteam an.`;
+export function sendFailureMessage(err) {
+  if (err?.status === 400 || err?.status === 422) return 'Die Nummer wurde abgelehnt. Bitte prüfe die Nummer.';
+  if (err?.status === 429) return 'Gerade werden sehr viele SMS verschickt. Bitte versuche es in einer Minute erneut.';
+  return 'Der SMS-Versand ist gerade nicht möglich. Bitte sprich das Standteam an.';
 }
 
-export function maskTarget(channel, target) {
-  if (channel === 'email') {
-    const [user, domain] = target.split('@');
-    return `${user.slice(0, 2)}${'•'.repeat(Math.max(1, user.length - 2))}@${domain}`;
-  }
+export function maskTarget(target) {
   return `${target.slice(0, 4)}${'•'.repeat(Math.max(1, target.length - 7))}${target.slice(-3)}`;
 }
