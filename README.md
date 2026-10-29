@@ -13,6 +13,8 @@ Node.js (Fastify) · PostgreSQL · Deploy auf Railway. Es werden keine E-Mails v
 
 Optional: SMS-Verifizierung (6-stelliger Code) per `VERIFY_PHONE=true` als Zwischenschritt vor „Fertig“ aktivierbar.
 
+**Sitzungen:** Jeder Durchlauf wird ab dem ersten Schritt laufend in der DB gespeichert (Tabelle `sessions`: letzter Schritt, Budgetverteilung, Glücksrad-Ergebnis) – auch wenn abgebrochen wird. Kiosk-Reset/Inaktivität markiert die Sitzung als `aborted`, ein abgeschlossener Lead als `completed`; Sitzungen ohne Abschluss (z. B. Browser geschlossen) bleiben `open`. Bewusst **ohne personenbezogene Daten** – Kontaktdaten werden erst mit Einwilligung als Lead gespeichert.
+
 ## Konfiguration
 
 **Inhalte** (Projekte, Betriebe, Texte, Budget): `config/event.json`.
@@ -45,6 +47,7 @@ npm test
 
 `/admin` (HTTP Basic Auth, `ADMIN_USER`/`ADMIN_PASSWORD`): Live-Auswertung je Projekt und Betrieb.
 `/admin/export.csv` (nur abgeschlossene) bzw. `?status=all` – Excel-kompatibel (`;`, UTF-8-BOM, eine Spalte je Projekt).
+`/admin/sessions.csv`: alle Sitzungen inkl. Abbrüche (Status, letzter Schritt, Abbruchgrund, Budget, Glücksrad, ggf. Lead-ID).
 
 ## Sicherheit & Robustheit
 
@@ -63,6 +66,7 @@ config/event.json     Inhalte des Events
 migrations/*.sql      DB-Schema (automatisch angewendet)
 src/server.js         Bootstrap, Security-Header, Fehlerbehandlung
 src/leads.js          Fachlogik: Lead, optionale SMS-Codes, Abschluss
+src/sessions.js       Sitzungen: anonyme Zwischenstände inkl. Abbrüche
 src/validation.js     Eingabeprüfung (Budget, Telefon, E-Mail)
 src/providers/        SMS (Twilio/seven.io/Console)
 src/routes/           API und Admin

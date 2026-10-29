@@ -30,6 +30,7 @@ function freshState() {
     error: '',
     wheelRotation: 0, // Endstellung des virtuellen Glücksrads (Grad)
     lead: null, // { leadId, token, status, email, phone, verification }
+    session: null, // { id, token, synced } – anonymer Verlauf in der DB (auch bei Abbruch)
     channels: {}, // { sms: { target, cooldownUntil, error, info } }
     busy: false,
   };
@@ -65,6 +66,7 @@ function save() {
     const { busy, spinning: _spinning, ...rest } = state;
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ eventSlug: event.slug, state: rest }));
   } catch { /* Speicher nicht verfügbar – App funktioniert trotzdem */ }
+  scheduleSessionSync();
 }
 function restore() {
   try {
@@ -92,6 +94,85 @@ async function api(method, url, body) {
   return data;
 }
 
+// ---------- Sitzung: Zwischenstände anonym speichern (Schritt, Budget, Glücksrad), auch bei Abbruch ----------
+// Fehler werden bewusst geschluckt: Die Sitzungsaufzeichnung darf den Ablauf am Stand nie blockieren.
+const SESSION_SYNC_DELAY_MS = 1200;
+const sessionQueues = new WeakMap(); // Zustand → Promise-Kette (Anfragen je Sitzung strikt nacheinander)
+let sessionTimer = null;
+
+const sessionSnapshot = (s) => ({
+  step: s.step,
+  allocations: s.allocations,
+  companySlug: s.form.companySlug || '',
+  leadId: s.lead?.status === 'completed' ? s.lead.leadId : undefined,
+});
+
+async function sessionRequest(method, url, body, token) {
+  const headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(url, { method, headers, body: JSON.stringify(body), keepalive: true });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.message || 'Sitzung nicht gespeichert'), { status: res.status });
+  return data;
+}
+
+function syncSession(owner = state, opts = {}) {
+  const next = (sessionQueues.get(owner) || Promise.resolve()).then(() => pushSession(owner, opts)).catch(() => {});
+  sessionQueues.set(owner, next);
+  return next;
+}
+
+async function pushSession(owner, { abort, retried } = {}) {
+  const snap = sessionSnapshot(owner);
+  const key = JSON.stringify(snap);
+  try {
+    if (!owner.session) {
+      if (snap.step === 'start') return; // noch nichts zu speichern
+      const data = await sessionRequest('POST', '/api/sessions', snap);
+      owner.session = { id: data.sessionId, token: data.token, synced: key };
+      if (owner === state) save();
+    } else if (!abort) {
+      if (owner.session.synced === key) return;
+      await sessionRequest('PUT', `/api/sessions/${encodeURIComponent(owner.session.id)}`, snap, owner.session.token);
+      owner.session.synced = key;
+      if (owner === state) save();
+    }
+    if (abort) {
+      await sessionRequest('POST', `/api/sessions/${encodeURIComponent(owner.session.id)}/abort`, { ...snap, reason: abort }, owner.session.token);
+    }
+  } catch (err) {
+    // Sitzung unbekannt (z. B. neues Event, DB geleert) → einmal neu anlegen.
+    if (err.status === 404 && owner.session && !retried) {
+      owner.session = null;
+      return pushSession(owner, { abort, retried: true });
+    }
+    throw err;
+  }
+}
+
+function scheduleSessionSync() {
+  if (!event || (state.step === 'start' && !state.session)) return;
+  clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(() => {
+    sessionTimer = null;
+    syncSession(state);
+  }, SESSION_SYNC_DELAY_MS);
+}
+
+function flushSessionSync() {
+  if (!sessionTimer) return;
+  clearTimeout(sessionTimer);
+  sessionTimer = null;
+  syncSession(state);
+}
+
+function endSession(owner, reason) {
+  clearTimeout(sessionTimer);
+  sessionTimer = null;
+  if (owner.step === 'done') syncSession(owner); // letzter Stand inkl. Lead → abgeschlossen
+  else if (owner.step !== 'start' || owner.session) syncSession(owner, { abort: reason });
+}
+
 function go(step) {
   state.step = normalizeStep(step);
   state.error = '';
@@ -99,7 +180,9 @@ function go(step) {
   window.scrollTo({ top: 0 });
 }
 
-function reset() {
+// reason: 'reset' (Button) | 'idle' (Inaktivität). Nach „Fertig“ gilt die Sitzung als abgeschlossen, sonst als abgebrochen.
+function reset(reason = 'reset') {
+  endSession(state, reason);
   state = freshState();
   try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* ignorieren */ }
   render();
@@ -663,9 +746,12 @@ setInterval(() => {
   const limit = state.step === 'done' ? event.kiosk.doneResetSeconds : event.kiosk.idleResetSeconds;
   if (state.step !== 'start' && limit > 0 && Date.now() - lastActivity > limit * 1000) {
     lastActivity = Date.now();
-    reset();
+    reset('idle');
   }
 }, 1000);
+
+// Beim Schließen/Neuladen ausstehenden Zwischenstand noch senden (keepalive).
+window.addEventListener('pagehide', flushSessionSync);
 
 // ---------- Start ----------
 (async function init() {

@@ -65,26 +65,52 @@ export default async function adminRoutes(app, { pool, config, ids }) {
         ...projects.map((p) => r.alloc[p.id] ?? 0), formatDate(r.consent_at),
       ].map(csvCell).join(';'),
     );
+    return sendCsv(reply, 'leads', header, lines);
+  });
+
+  // Alle Sitzungen inkl. Abbrüche (anonym: Schritt, Budget, Glücksrad, ggf. verknüpfter Lead).
+  app.get('/sessions.csv', async (_req, reply) => {
+    const projects = await loadProjects();
+    const { rows } = await pool.query(
+      `SELECT s.*, c.name AS company_name FROM sessions s
+       LEFT JOIN companies c ON c.id = s.company_id
+       WHERE s.event_id = $1 ORDER BY s.created_at`,
+      [ids.eventId],
+    );
+    const header = [
+      'Sitzungs-ID', 'Status', 'Letzter Schritt', 'Abbruchgrund', 'Gestartet', 'Zuletzt aktiv', 'Beendet',
+      'Glücksrad-Betrieb', ...projects.map((p) => `${p.title} (€)`), 'Lead-ID',
+    ];
+    const lines = rows.map((r) =>
+      [
+        r.id, r.status, r.last_step, r.abort_reason, formatDate(r.created_at), formatDate(r.updated_at), formatDate(r.ended_at),
+        r.company_name, ...projects.map((p) => r.allocations?.[p.slug] ?? 0), r.lead_id,
+      ].map(csvCell).join(';'),
+    );
+    return sendCsv(reply, 'sitzungen', header, lines);
+  });
+
+  function sendCsv(reply, name, header, lines) {
     const stamp = new Date().toISOString().slice(0, 10);
     reply
       .header('Content-Type', 'text/csv; charset=utf-8')
-      .header('Content-Disposition', `attachment; filename="leads-${stamp}.csv"`)
+      .header('Content-Disposition', `attachment; filename="${name}-${stamp}.csv"`)
       .header('Cache-Control', 'no-store');
     // BOM für korrekte Umlaute in Excel.
     return `﻿${[header.map(csvCell).join(';'), ...lines].join('\r\n')}\r\n`;
-  });
+  }
 
   app.get('/stats', async () => stats());
 
   async function stats() {
-    const [{ rows: [counts] }, { rows: byProject }, { rows: byCompany }] = await Promise.all([
+    const [{ rows: [counts] }, { rows: byProject }, { rows: byCompany }, { rows: [sessions] }, { rows: sessionSums }] = await Promise.all([
       pool.query(
         `SELECT count(*)::int AS total, count(*) FILTER (WHERE status = 'completed')::int AS completed
          FROM leads WHERE event_id = $1`,
         [ids.eventId],
       ),
       pool.query(
-        `SELECT p.title, p.active,
+        `SELECT p.slug, p.title, p.active,
            COALESCE(sum(a.amount_euro) FILTER (WHERE l.id IS NOT NULL), 0)::bigint AS sum,
            count(l.id) FILTER (WHERE a.amount_euro > 0)::int AS votes
          FROM projects p
@@ -100,8 +126,29 @@ export default async function adminRoutes(app, { pool, config, ids }) {
          WHERE c.event_id = $1 GROUP BY c.id ORDER BY c.sort_order`,
         [ids.eventId],
       ),
+      pool.query(
+        `SELECT count(*)::int AS total,
+           count(*) FILTER (WHERE status = 'open')::int AS open,
+           count(*) FILTER (WHERE status = 'aborted')::int AS aborted,
+           count(*) FILTER (WHERE status = 'completed')::int AS completed
+         FROM sessions WHERE event_id = $1`,
+        [ids.eventId],
+      ),
+      // Budget über alle Sitzungen – inkl. abgebrochener (Stimmungsbild ohne Kontaktdaten).
+      pool.query(
+        `SELECT a.key AS slug, sum(a.value::bigint)::bigint AS sum
+         FROM sessions s, jsonb_each_text(s.allocations) a
+         WHERE s.event_id = $1 GROUP BY a.key`,
+        [ids.eventId],
+      ),
     ]);
-    return { ...counts, byProject: byProject.map((p) => ({ ...p, sum: Number(p.sum) })), byCompany };
+    const allSessions = new Map(sessionSums.map((r) => [r.slug, Number(r.sum)]));
+    return {
+      ...counts,
+      sessions,
+      byProject: byProject.map((p) => ({ ...p, sum: Number(p.sum), sessionSum: allSessions.get(p.slug) ?? 0 })),
+      byCompany,
+    };
   }
 
   app.get('/', async (_req, reply) => {
@@ -113,11 +160,15 @@ export default async function adminRoutes(app, { pool, config, ids }) {
 <main class="shell"><p class="kicker">Admin</p><h1 class="display">Auswertung</h1>
 <div class="stat-row"><div class="card stat"><span>Abgeschlossen</span><strong>${s.completed}</strong></div>
 <div class="card stat"><span>Begonnen</span><strong>${s.total}</strong></div></div>
+<div class="stat-row"><div class="card stat"><span>Sitzungen</span><strong>${s.sessions.total}</strong></div>
+<div class="card stat"><span>Abgebrochen</span><strong>${s.sessions.aborted}</strong></div>
+<div class="card stat"><span>Offen</span><strong>${s.sessions.open}</strong></div></div>
 <p><a class="btn btn-primary" href="/admin/export.csv">CSV (abgeschlossen)</a>
-<a class="btn btn-ghost" href="/admin/export.csv?status=all">CSV (alle)</a></p>
-<h2>Budget je Projekt (nur abgeschlossene)</h2>
-<table class="table"><thead><tr><th>Projekt</th><th>Summe</th><th>Stimmen</th></tr></thead>
-<tbody>${rows(s.byProject, [(p) => p.title + (p.active ? '' : ' (inaktiv)'), (p) => formatEuro(p.sum), (p) => p.votes])}</tbody></table>
+<a class="btn btn-ghost" href="/admin/export.csv?status=all">CSV (alle)</a>
+<a class="btn btn-ghost" href="/admin/sessions.csv">CSV Sitzungen (inkl. Abbrüche)</a></p>
+<h2>Budget je Projekt</h2>
+<table class="table"><thead><tr><th>Projekt</th><th>Summe (abgeschlossen)</th><th>Stimmen</th><th>Summe (alle Sitzungen)</th></tr></thead>
+<tbody>${rows(s.byProject, [(p) => p.title + (p.active ? '' : ' (inaktiv)'), (p) => formatEuro(p.sum), (p) => p.votes, (p) => formatEuro(p.sessionSum)])}</tbody></table>
 <h2>Glücksrad je Betrieb</h2>
 <table class="table"><thead><tr><th>Betrieb</th><th>Leads</th></tr></thead>
 <tbody>${rows(s.byCompany, [(c) => c.name, (c) => c.leads])}</tbody></table>

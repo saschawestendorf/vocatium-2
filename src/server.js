@@ -8,6 +8,7 @@ import { loadConfig } from './config.js';
 import { createPool, migrate } from './db.js';
 import { loadEventConfig, publicEvent, syncEvent } from './event.js';
 import { AppError, createLeadService } from './leads.js';
+import { createSessionService } from './sessions.js';
 import { createSmsProvider } from './providers/sms.js';
 import apiRoutes from './routes/api.js';
 import adminRoutes from './routes/admin.js';
@@ -35,6 +36,7 @@ export async function buildApp({ config, pool, event, ids }) {
 
   const smsProvider = createSmsProvider(config, app.log);
   const leads = createLeadService({ pool, config, event, ids, smsProvider, log: app.log });
+  const sessions = createSessionService({ pool, config, event, ids });
 
   app.addHook('onSend', async (_req, reply) => {
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) reply.header(k, v);
@@ -68,7 +70,7 @@ export async function buildApp({ config, pool, event, ids }) {
     }
   });
 
-  await app.register(apiRoutes, { prefix: '/api', leads, publicEventData: publicEvent(event, config) });
+  await app.register(apiRoutes, { prefix: '/api', leads, sessions, publicEventData: publicEvent(event, config) });
   await app.register(adminRoutes, { prefix: '/admin', pool, config, ids });
   await app.register(fastifyStatic, {
     root: PUBLIC_DIR,
