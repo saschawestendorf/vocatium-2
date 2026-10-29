@@ -49,6 +49,10 @@ npm test
 `/admin/export.csv` (nur abgeschlossene) bzw. `?status=all` – Excel-kompatibel (`;`, UTF-8-BOM, eine Spalte je Projekt).
 `/admin/sessions.csv`: alle Sitzungen inkl. Abbrüche (Status, letzter Schritt, Abbruchgrund, Budget, Glücksrad, ggf. Lead-ID).
 
+**Datenexport per Schlüssel:** `GET /export/data.json` liefert alle Tabellen als JSON (ohne Token-/Code-Hashes, eine Read-only-Transaktion).
+Aktiv nur mit `EXPORT_API_KEY` (≥ 32 Zeichen), Schlüssel nur per Header `Authorization: Bearer …` oder `X-Export-Key`, 10 Abrufe/Minute.
+Ohne Schlüssel antwortet der Endpunkt mit 404. Nach dem Export die Variable wieder entfernen.
+
 **Lead-Report (Excel + PDF):** `tools/report/` erzeugt aus einem DB-Dump (`dump_db.mjs`) oder den beiden Admin-CSVs einen
 vollständigen Bericht inkl. Sitzungen, Budget je Projekt, Glücksrad je Betrieb und Markierung von Testläufen – siehe `tools/report/README.md`.
 

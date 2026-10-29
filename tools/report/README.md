@@ -7,7 +7,17 @@ Stammdaten, Verifizierungen und eine Legende. Testläufe werden **markiert, nich
 
 ## 1. Daten holen
 
-Es gibt zwei Wege – der Generator versteht beide.
+Drei Wege – der Generator versteht alle.
+
+**0) Export-Endpunkt der App (am schnellsten)**
+
+```bash
+# Voraussetzung: EXPORT_API_KEY ist am App-Service gesetzt (≥ 32 Zeichen)
+curl -fsS -H "Authorization: Bearer $EXPORT_API_KEY" -o dump.json 'https://<domain>/export/data.json'
+python3 tools/report/build_report.py --dump-file dump.json --out-dir report
+```
+
+Liefert denselben Inhalt wie `dump_db.mjs -`. Nach dem Export `EXPORT_API_KEY` wieder entfernen → Endpunkt aus.
 
 **A) JSON-Dump direkt aus der Datenbank (vollständig, empfohlen)**
 
