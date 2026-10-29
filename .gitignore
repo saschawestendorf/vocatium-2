@@ -5,3 +5,8 @@ node_modules/
 *.log
 .DS_Store
 coverage/
+
+# Report-Ausgaben und DB-Dumps (personenbezogene Daten)
+/report/
+/dump/
+/dump*.json
